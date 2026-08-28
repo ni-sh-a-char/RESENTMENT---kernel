@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: Apache-2.0
+name: build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # The portable half of the kernel, compiled for the host and exercised with
+  # real assertions. Fastest signal, so it runs first and everything else
+  # depends on it.
+  host-tests:
+    name: host test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and run the host tests
+        run: make test
+
+      - name: Cross-check Kaalka against the reference implementation
+        run: make kaalka-check
+
+  # Building all three architectures is the portability check, and it is cheap.
+  build:
+    name: build ${{ matrix.arch }}
+    needs: host-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64, riscv64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential nasm python3 \
+            gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu
+
+      - name: Build
+        run: make ARCH=${{ matrix.arch }} TOOLCHAIN=gcc
+
+      - name: Verify the image is bootable
+        if: matrix.arch == 'x86_64'
+        run: make ARCH=x86_64 TOOLCHAIN=gcc verify
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resentment-${{ matrix.arch }}
+          path: dist/${{ matrix.arch }}/resentment.elf
+          if-no-files-found: error
+
+  # The integration test: boot the kernel and drive its shell over a serial
+  # link. Everything from the interrupt controller to the SHE compiler has to
+  # work for one line to come back correct.
+  boot:
+    name: boot and drive the shell
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the toolchain and QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential nasm python3 qemu-system-x86
+
+      - name: Build
+        run: make TOOLCHAIN=gcc
+
+      - name: Boot and check the shell
+        run: make TOOLCHAIN=gcc qemu-test
+
+      - name: Run the attestation demo headlessly
+        run: make TOOLCHAIN=gcc run-script SCRIPT=/boot/bin/attest.she
+
+      - name: Keep the serial transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-transcript
+          path: build/qemu-expect.log
+          if-no-files-found: ignore
+
+  # A GRUB ISO is how this boots on real hardware, so it is built even though
+  # the fast path does not need one.
+  iso:
+    name: bootable ISO
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the toolchain and GRUB
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential nasm python3 xorriso mtools \
+            grub-pc-bin grub-common
+
+      - name: Build the ISO
+        run: make TOOLCHAIN=gcc iso
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resentment-iso
+          path: dist/x86_64/resentment.iso
+          if-no-files-found: error

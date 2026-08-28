@@ -1,0 +1,24 @@
+# sysinfo.she - what this machine is.
+#
+# Everything here comes from the runtime graph, which means a script sees
+# exactly what the kernel knows, with no parsing of text output.
+
+let s = system()
+
+say "RESENTMENT system report"
+say ""
+say "  architecture   " + s["arch"]
+say "  processor      " + s["cpu"]
+say "  cores          " + s["cpus"]
+say "  memory free    " + s["memory_free"] + " bytes"
+say "  memory total   " + s["memory_total"] + " bytes"
+say "  live threads   " + s["threads"]
+say "  uptime         " + s["uptime"] + " seconds"
+say ""
+
+let used = s["memory_total"] - s["memory_free"]
+let percent = used * 100 / s["memory_total"]
+say "  memory in use  " + percent + "%"
+
+say ""
+say "  state digest   " + digest()

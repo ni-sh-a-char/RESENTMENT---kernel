@@ -1,0 +1,22 @@
+# hello.she - the smallest useful SHE program.
+#
+# Run it with:  .run /boot/bin/hello.she
+
+let name = ask "What should I call you?"
+if length(name) is 0 then
+  name = "stranger"
+end
+
+say "Hello, {name}."
+say ""
+
+# Pipelines read left to right, which is the order the work happens in.
+let numbers = [4, 8, 15, 16, 23, 42]
+say "Numbers:      " + text(numbers)
+say "Even halves:  " + text(numbers |> filter(fun(n) -> n % 2 is 0) |> map(fun(n) -> n / 2))
+say "Total:        " + sum(numbers)
+
+say ""
+for each n in 1 to 5
+  say "  " + n + " squared is " + (n * n)
+end

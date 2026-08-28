@@ -1,0 +1,15 @@
+# Kernel sources keep LF endings everywhere. A CRLF in an assembly file breaks
+# some assemblers, and a CRLF in a linker script breaks lld, both in ways that
+# are hard to see in a diff.
+*.c      text eol=lf
+*.h      text eol=lf
+*.S      text eol=lf
+*.asm    text eol=lf
+*.ld     text eol=lf
+*.she    text eol=lf
+*.sh     text eol=lf
+*.py     text eol=lf
+*.md     text eol=lf
+*.yml    text eol=lf
+Makefile text eol=lf
+Dockerfile text eol=lf

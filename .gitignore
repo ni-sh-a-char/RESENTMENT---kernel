@@ -1,0 +1,13 @@
+# Build output
+/build/
+/dist/
+
+# Toolchain fetched by `make toolchain`
+/.toolchain/
+
+# Editor and OS noise
+*.o
+*.d
+*.pdb
+*.swp
+.DS_Store

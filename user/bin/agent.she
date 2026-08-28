@@ -1,0 +1,40 @@
+# agent.she - what an agent looks like on this kernel.
+#
+# The point of this file is the permission model, not the logic. Run it as it
+# is and it stops at the first thing it was not granted, naming the flag that
+# would allow it. Grant that with .allow and run it again. Nothing here can
+# reach outside what it has been given, and the kernel is what enforces that,
+# not this interpreter.
+
+say "agent starting"
+
+# Reading the machine's own state needs the graph permission.
+let s = system()
+say "  running on " + s["arch"] + " with " + s["cpus"] + " core(s)"
+
+# Continuity across reboots comes from the federated memory fabric, which is
+# content-addressed: writing the same value twice is one entry, and two
+# machines can merge their fabrics without a conflict rule.
+let last = recall("agent_last_seen")
+if last is nothing then
+  say "  first run on this machine"
+else
+  say "  last seen at " + last
+end
+remember("agent_last_seen", now())
+
+# Deciding something, and recording why, so the decision is auditable later.
+let free = s["memory_free"]
+let verdict = "healthy"
+if free < 8000000 then
+  verdict = "low memory"
+end
+say "  verdict: " + verdict
+remember("agent_last_verdict", verdict)
+
+# Sealing the conclusion binds it to a time window. An unsealed claim about a
+# machine is a claim about no particular moment.
+let proof = seal(verdict, 300)
+say "  sealed until " + proof["until"] + " in epoch " + proof["epoch"]
+
+say "agent done"

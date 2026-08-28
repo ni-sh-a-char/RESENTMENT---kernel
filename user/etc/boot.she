@@ -1,0 +1,32 @@
+# RESENTMENT boot script
+#
+# This runs before the first prompt, from the initial ramdisk. It is trusted by
+# position - it is the file the kernel was told to run - so it starts with all
+# permissions. Everything it starts afterwards gets only what it is granted.
+#
+# Edit this file to configure the machine. Nothing here needs the kernel to be
+# recompiled.
+
+say ""
+say "  RESENTMENT is up."
+
+let facts = system()
+say "  " + facts["cpus"] + " cpu, " + facts["memory_free"] + " bytes free"
+
+# The whole machine as one hash. Two systems in the same state produce the same
+# value, which is what makes "is this machine the one I attested" answerable.
+say "  state digest " + digest()
+
+# The federated memory fabric survives a reboot, so a count here is a count of
+# how many times this machine has started.
+let boots = recall("boot_count")
+if boots is nothing then
+  remember("boot_count", 1)
+  say "  first boot on this machine"
+else
+  let n = number(boots) + 1
+  remember("boot_count", n)
+  say "  boot number " + n
+end
+
+say ""

@@ -1,0 +1,63 @@
+# attest.she - prove what this machine looked like, and when.
+#
+# Run it with:  .run /boot/bin/attest.she
+#          or:  boot with -append "run=/boot/bin/attest.she once"
+#
+# The runtime graph gives the whole system one SHA-256 root. Sealing that root
+# with Kaalka binds it to a time window, so the result answers two questions at
+# once: what was the state, and when was it true. Neither is answerable on a
+# conventional system without an agent, a log pipeline and a lot of trust.
+
+say "RESENTMENT attestation"
+say ""
+
+let before = digest()
+say "state now      " + before
+
+let snap = snapshot()
+say "snapshot       " + snap["digest"]
+say "nodes          " + snap["nodes"]
+say "bytes          " + snap["bytes"]
+say "sealed at      " + snap["at"]
+say ""
+
+# The clock angles Kaalka derives its keys from, live. They change every
+# second, which is exactly why a key derived from them expires.
+let a = angles()
+say "clock angles (degrees between the hands)"
+say "  hour to minute    " + a["hour_minute"]
+say "  minute to second  " + a["minute_second"]
+say "  hour to second    " + a["hour_second"]
+say ""
+
+# Pure computation does not move the digest, and that is the point rather than
+# a limitation: the graph tracks kernel objects, so the hash names the state of
+# the machine and not the noise of whatever happened to be running.
+let scratch = []
+for each n in 1 to 100
+  push(scratch, n * n)
+end
+
+let after_work = digest()
+if before is after_work then
+  say "after 100 values computed:  digest unchanged, as it should be"
+else
+  say "after 100 values computed:  digest moved, which it should not have"
+end
+
+# Changing something the kernel owns does move it. The memory fabric is kernel
+# state, so writing to it is a change of machine state and the hash says so.
+remember("attest_ran_at", now())
+let after_state = digest()
+
+say ""
+if after_work is after_state then
+  say "after writing to the fabric: digest unchanged - that would be a bug,"
+  say "because the machine now holds something it did not hold before."
+else
+  say "after writing to the fabric: digest moved to"
+  say "  " + after_state
+  say ""
+  say "The machine changed, and its name changed with it. That is the whole"
+  say "property: comparing two systems is comparing two hashes."
+end
