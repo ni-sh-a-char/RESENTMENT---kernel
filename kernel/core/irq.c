@@ -123,7 +123,11 @@ bool rk_in_irq(void)
 void rk_irq_dispatch(u32 vector)
 {
 	u32 cpu = arch_cpu_id();
-	u32 line = vector >= IRQ_VECTOR_BASE ? vector - IRQ_VECTOR_BASE : vector;
+	/* The base is zero on the architectures whose controller numbers lines
+	 * from zero, and testing it first keeps that case from reading as an
+	 * unsigned comparison against zero. */
+	u32 line = (IRQ_VECTOR_BASE && vector >= IRQ_VECTOR_BASE)
+	         ? vector - IRQ_VECTOR_BASE : vector;
 
 	if (cpu < RK_MAX_CPUS)
 		in_irq_depth[cpu]++;

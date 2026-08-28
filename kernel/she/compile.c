@@ -366,7 +366,9 @@ static void compile_text(struct compiler *c)
 {
 	const char *s = c->prev.start;
 	u32 len = c->prev.len;
-	char buf[256];
+	/* Initialised because the empty-string case passes it with a length of
+	 * zero, which the compiler cannot see is safe. */
+	char buf[256] = { 0 };
 	u32 n = 0;
 	u32 parts = 0;
 

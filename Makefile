@@ -76,14 +76,16 @@ ifeq ($(ARCH),x86_64)
 endif
 ifeq ($(ARCH),aarch64)
   ARCH_CFLAGS := -mgeneral-regs-only
+  AI_CFLAGS   :=
   ifneq ($(TOOLCHAIN),zig)
     # GCC's outline atomics call into libgcc (__aarch64_ldadd4_acq_rel and
     # friends) so that one binary can use LSE where the CPU has it. A
     # freestanding kernel does not link libgcc, so every atomic becomes an
-    # undefined symbol at link time. Inline them instead.
+    # undefined symbol at link time. Inline them instead - in both flag sets,
+    # because kernel/ai is compiled with its own and uses atomics too.
     ARCH_CFLAGS += -mno-outline-atomics
+    AI_CFLAGS   += -mno-outline-atomics
   endif
-  AI_CFLAGS   :=
   QEMU        := qemu-system-aarch64
   QEMUFLAGS   := -M virt -cpu cortex-a72 -m 512M -nographic \
                  -kernel $(DIST)/resentment.elf
@@ -99,10 +101,17 @@ ifeq ($(ARCH),riscv64)
   # into "unrecognized opcode".
   ifeq ($(TOOLCHAIN),zig)
     ARCH_CFLAGS := -mcmodel=medany
+    AI_CFLAGS   := $(ARCH_CFLAGS)
   else
     ARCH_CFLAGS := -mcmodel=medany -march=rv64imac_zicsr_zifencei -mabi=lp64
+    # kernel/ai is the one directory allowed to touch the float unit, so it is
+    # the one place F and D belong in -march. Without them GCC compiles every
+    # float into a libgcc soft-float call - __addsf3 and its family - which a
+    # freestanding kernel does not link. The ABI stays lp64 either way:
+    # arguments travel in integer registers, and the float unit is used only
+    # inside the rk_fpu_begin/rk_fpu_end window.
+    AI_CFLAGS   := -mcmodel=medany -march=rv64imafdc_zicsr_zifencei -mabi=lp64
   endif
-  AI_CFLAGS   := $(ARCH_CFLAGS)
   QEMU        := qemu-system-riscv64
   QEMUFLAGS   := -M virt -m 512M -nographic -kernel $(DIST)/resentment.elf
 endif
