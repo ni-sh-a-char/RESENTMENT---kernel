@@ -241,10 +241,12 @@ def run_one(arch, qemu_override, timeout, port):
                 print(f"  MISSING from the boot log: {want}")
                 failures += 1
 
+        # Every image carries its own copy of the ramdisk, so /boot exists on
+        # every architecture whether or not the loader passed a module. A check
+        # that needs it is therefore never skipped - if /boot is missing, that
+        # is a failure and should read as one.
         ran = 0
-        for command, expect, needs_initrd in CHECKS:
-            if needs_initrd and not has_initrd:
-                continue
+        for command, expect, _needs_initrd in CHECKS:
             ran += 1
             mark = s.mark()
             s.send(command)

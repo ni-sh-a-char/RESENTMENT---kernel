@@ -260,8 +260,20 @@ int rk_initrd_mount(paddr_t start, paddr_t end, const char *target)
 	initrd_phys_start = start;
 	initrd_phys_end   = end;
 
-	const u8 *base = (const u8 *)arch_phys_to_virt(start);
-	size_t total = (size_t)(end - start);
+	return rk_initrd_mount_mem((const void *)arch_phys_to_virt(start),
+	                           (size_t)(end - start), target);
+}
+
+/* The archive is already mapped and its physical address is not interesting:
+ * this is the path used by an image that carries its own ramdisk in
+ * .rodata, on a machine whose firmware cannot pass a module. */
+int rk_initrd_mount_mem(const void *addr, size_t len, const char *target)
+{
+	if (!addr || len < 512)
+		return RK_ENODEV;
+
+	const u8 *base = (const u8 *)addr;
+	size_t total = len;
 
 	initrd_root = make_node("/", RK_FT_DIR, NULL);
 	if (!initrd_root)

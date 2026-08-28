@@ -122,11 +122,26 @@ C_SRCS  := $(shell find kernel -name '*.c' 2>/dev/null) \
 ASM_SRCS:= $(shell find arch/$(ARCH) -name '*.asm' 2>/dev/null)
 S_SRCS  := $(shell find arch/$(ARCH) -name '*.S' 2>/dev/null)
 
+# The initial ramdisk, linked into the image. A bootloader module is still
+# preferred and still wins at run time, but QEMU hands no module to a bare ELF
+# on the ARM and RISC-V virt machines - so without this, two of the three
+# architectures have no /boot and the integration suite quietly tests less.
+GEN_INITRD_C := $(BUILD)/gen/initrd_blob.c
+GEN_INITRD_O := $(BUILD)/gen/initrd_blob.o
+
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(C_SRCS)) \
         $(patsubst %.asm,$(BUILD)/%.o,$(ASM_SRCS)) \
-        $(patsubst %.S,$(BUILD)/%.o,$(S_SRCS))
+        $(patsubst %.S,$(BUILD)/%.o,$(S_SRCS)) \
+        $(GEN_INITRD_O)
 
 DEPS := $(OBJS:.o=.d)
+
+# -MF and -MT are spelled out rather than relying on -MMD alone. `zig cc`
+# accepts -MMD and then writes no dependency file at all, and when told where
+# to write one it names the target after its own temporary object. Either
+# failure is silent: the build keeps working, and editing a header stops
+# rebuilding anything that includes it.
+DEPFLAGS = -MMD -MP -MF $(@:.o=.d) -MT $@
 
 LINKER_SCRIPT := arch/$(ARCH)/linker.ld
 KERNEL_ELF    := $(DIST)/resentment.elf
@@ -151,12 +166,12 @@ $(KERNEL_ELF): $(OBJS) $(LINKER_SCRIPT)
 $(BUILD)/kernel/ai/%.o: kernel/ai/%.c
 	@mkdir -p $(dir $@)
 	@echo "  CC/simd $<"
-	$(Q)$(CC) $(CFLAGS_AI) -MMD -MP -c $< -o $@
+	$(Q)$(CC) $(CFLAGS_AI) $(DEPFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: %.c
 	@mkdir -p $(dir $@)
 	@echo "  CC      $<"
-	$(Q)$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(Q)$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: %.asm
 	@mkdir -p $(dir $@)
@@ -166,7 +181,7 @@ $(BUILD)/%.o: %.asm
 $(BUILD)/%.o: %.S
 	@mkdir -p $(dir $@)
 	@echo "  AS      $<"
-	$(Q)$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(Q)$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 -include $(DEPS)
 
@@ -193,6 +208,15 @@ $(DIST)/resentment.iso: $(KERNEL_ELF) arch/x86_64/grub.cfg $(DIST)/initrd.tar
 
 initrd: $(DIST)/initrd.tar
 
+$(GEN_INITRD_C): $(DIST)/initrd.tar
+	@mkdir -p $(dir $@)
+	$(Q)$(PYTHON) tools/bin2c.py $< $@
+
+$(GEN_INITRD_O): $(GEN_INITRD_C)
+	@mkdir -p $(dir $@)
+	@echo "  CC      $<"
+	$(Q)$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
 $(DIST)/initrd.tar: $(shell find user -type f 2>/dev/null)
 	@mkdir -p $(dir $@)
 	@echo "  INITRD  $@"
@@ -210,11 +234,12 @@ MB1_ELF := $(DIST)/resentment32.elf
 $(MB1_ELF): $(KERNEL_ELF)
 	$(Q)$(PYTHON) tools/mkmb1.py $< $@
 
-# Part of the default build, not an extra step. A stale repackaged image that
-# silently boots yesterday's kernel is the kind of thing that costs an
-# afternoon, and there is no reason for the two to ever be out of step.
+# Both are part of the default build, not extra steps. A stale repackaged image
+# that silently boots yesterday's kernel is the kind of thing that costs an
+# afternoon; a missing initrd is worse, because the integration harness skips
+# the checks that need one and still reports success.
 ifeq ($(ARCH),x86_64)
-kernel: $(MB1_ELF)
+kernel: $(MB1_ELF) $(DIST)/initrd.tar
 endif
 
 # Probe by running it, not by looking it up: Windows ships a `python3` shim

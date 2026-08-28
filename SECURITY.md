@@ -6,8 +6,8 @@ Report privately, not in a public issue.
 
 - **Preferred:** [open a draft security advisory](https://github.com/ni-sh-a-char/RESENTMENT---kernel/security/advisories/new)
   on this repository. That gives us a private thread and, if it matters, a CVE.
-- **Alternative:** email `dev@gratefulworldventures.in` with `RESENTMENT` in the
-  subject line.
+- **Alternative:** open a private thread by messaging the maintainer,
+  [@PIYUSH-MISHRA-00](https://github.com/PIYUSH-MISHRA-00), on GitHub.
 
 Please include: the affected commit or tag, the architecture, what an attacker
 gains, and the smallest reproduction you have — ideally a SHE script, a QEMU

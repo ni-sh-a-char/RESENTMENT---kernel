@@ -21,10 +21,14 @@ typedef int64_t  s64;
 typedef uint64_t paddr_t;
 typedef uintptr_t vaddr_t;
 
-/* A byte count that can also carry a negative error code. Freestanding builds
- * have no <sys/types.h>; the host test harness defines RK_HOSTED and brings
- * its own so the two definitions cannot conflict. */
-#ifndef RK_HOSTED
+/* A byte count that can also carry a negative error code. A freestanding build
+ * has no <sys/types.h> and defines the type itself; a hosted build takes the
+ * platform's, because defining it a second time is a hard error rather than a
+ * warning. Not every libc reaches ssize_t through <stdint.h>, which is why the
+ * include is explicit rather than assumed. */
+#ifdef RK_HOSTED
+#  include <sys/types.h>
+#else
 typedef s64 ssize_t;
 #endif
 

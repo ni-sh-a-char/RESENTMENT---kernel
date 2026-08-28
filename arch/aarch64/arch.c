@@ -347,9 +347,39 @@ u64 arch_time_ns(void)
 	return (u64)(((__uint128_t)arch_cycles() * 1000000000ull) / f);
 }
 
-/* No RTC on the virt machine. Returning zero is honest; the kernel then starts
- * wall time at the epoch and says so. */
-s64 arch_wallclock_unix(void) { return 0; }
+/* ------------------------------------------------------------------ RTC */
+
+/* The PL031, which is the RTC on QEMU's virt machine and on most ARM boards
+ * that have one at all. A single register: seconds since the Unix epoch.
+ *
+ * The base address is the virt machine's. Probing for it properly means
+ * walking the device tree for "arm,pl031", and this port cannot rely on having
+ * a tree - QEMU hands none to a bare ELF. So the address is assumed and the
+ * *answer* is checked instead: a time outside a plausible window is treated as
+ * no clock rather than as a clock that is wrong, because Kaalka would
+ * otherwise derive epoch keys from nonsense.
+ *
+ * Without a wall clock, seals have no real time base and every clock angle
+ * Kaalka reads is zero - which is exactly the kind of failure that looks like
+ * everything working.
+ *
+ * ponytail: hardcoded base with a sanity check. Read it from the device tree
+ * once this port has a tree it can count on. */
+#define PL031_BASE  0x09010000ul
+#define PL031_DR    0x00            /* data register: seconds since the epoch */
+
+/* 2020-01-01 and 2100-01-01. Wide enough not to reject a badly set clock,
+ * narrow enough to reject a register that is not an RTC. */
+#define WALLCLOCK_MIN 1577836800ll
+#define WALLCLOCK_MAX 4102444800ll
+
+s64 arch_wallclock_unix(void)
+{
+	volatile const u32 *rtc = (volatile const u32 *)PL031_BASE;
+	s64 secs = (s64)rtc[PL031_DR / 4];
+
+	return (secs >= WALLCLOCK_MIN && secs < WALLCLOCK_MAX) ? secs : 0;
+}
 
 /* --------------------------------------------------------------- memory */
 

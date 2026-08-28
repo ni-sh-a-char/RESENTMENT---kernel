@@ -169,6 +169,7 @@ void rk_ramfs_init(void);
 void rk_devfs_init(void);
 void rk_graphfs_init(void);
 int  rk_initrd_mount(paddr_t start, paddr_t end, const char *target);
+int  rk_initrd_mount_mem(const void *addr, size_t len, const char *target);
 
 struct vfs_stats {
 	u64 opens, reads, writes, lookups, creates, unlinks;

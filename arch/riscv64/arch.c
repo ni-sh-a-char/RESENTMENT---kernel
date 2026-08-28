@@ -291,7 +291,42 @@ u64 arch_time_ns(void)
 	return (u64)(((__uint128_t)arch_cycles() * 1000000000ull) / timer_freq);
 }
 
-s64 arch_wallclock_unix(void) { return 0; }
+/* ------------------------------------------------------------------ RTC */
+
+/* The goldfish RTC, which is what QEMU's virt machine provides and what a
+ * surprising number of ARM and RISC-V boards emulate. Two registers: reading
+ * the low word latches the high one, and the pair is nanoseconds since the
+ * Unix epoch.
+ *
+ * The base address is the virt machine's. Probing for it properly means
+ * walking the device tree for "google,goldfish-rtc", and this port cannot rely
+ * on having a tree at all - QEMU hands none to a bare ELF. So the address is
+ * assumed and the *answer* is checked instead: a time outside a plausible
+ * window is treated as no clock rather than as a clock that is wrong, because
+ * Kaalka would otherwise derive epoch keys from nonsense.
+ *
+ * Without this the wall clock is zero, seals have no real time base, and every
+ * clock angle Kaalka reads is zero as well - which is exactly the failure that
+ * looks like everything working. */
+#define GOLDFISH_RTC_BASE  0x00101000ul
+#define GOLDFISH_TIME_LOW  0x00
+#define GOLDFISH_TIME_HIGH 0x04
+
+/* 2020-01-01 and 2100-01-01. Wide enough not to reject a badly set clock,
+ * narrow enough to reject a register that is not an RTC. */
+#define WALLCLOCK_MIN 1577836800ll
+#define WALLCLOCK_MAX 4102444800ll
+
+s64 arch_wallclock_unix(void)
+{
+	volatile const u32 *rtc = (volatile const u32 *)GOLDFISH_RTC_BASE;
+
+	u32 lo = rtc[GOLDFISH_TIME_LOW / 4];
+	u32 hi = rtc[GOLDFISH_TIME_HIGH / 4];
+	s64 secs = (s64)(((u64)hi << 32 | lo) / 1000000000ull);
+
+	return (secs >= WALLCLOCK_MIN && secs < WALLCLOCK_MAX) ? secs : 0;
+}
 
 /* --------------------------------------------------------------- memory */
 

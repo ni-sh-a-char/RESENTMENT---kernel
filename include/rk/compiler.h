@@ -15,7 +15,11 @@
 #define __printf(a, b)  __attribute__((format(printf, a, b)))
 #define __section(s)    __attribute__((section(s)))
 #define __weak          __attribute__((weak))
+/* glibc's <sys/cdefs.h> defines this too, identically in effect. Redefining
+ * it is a warning on every hosted build of the test harness, so don't. */
+#ifndef __always_inline
 #define __always_inline inline __attribute__((always_inline))
+#endif
 #define __noinline      __attribute__((noinline))
 #define __fallthrough   __attribute__((fallthrough))
 

@@ -270,7 +270,14 @@ static s64 sys_she_eval(struct rk_syscall_args *a)
 		                       : (size_t)snprintf(buf, sizeof(buf), "%s", vm->error);
 		if (n >= sizeof(buf))
 			n = sizeof(buf) - 1;
-		copy_to_user((void *)(uintptr_t)a->a4, buf, n + 1);
+		/* A bad output buffer has to be reported. Returning success with
+		 * nothing written would leave the caller reading whatever was in
+		 * its own memory and believing the kernel put it there. An
+		 * evaluation error is kept in preference, being the more useful of
+		 * the two. */
+		int cr = copy_to_user((void *)(uintptr_t)a->a4, buf, n + 1);
+		if (cr != RK_OK && rc == RK_OK)
+			rc = cr;
 	}
 
 	she_vm_free(vm);

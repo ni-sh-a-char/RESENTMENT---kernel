@@ -71,8 +71,10 @@ from a clean tree. The release notes say what changed, and the version in
 ## Code of conduct
 
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) applies to every space this project
-uses. Enforcement is by the maintainer; reports go to
-`dev@gratefulworldventures.in`.
+uses. Enforcement is by the maintainer; report to
+[@PIYUSH-MISHRA-00](https://github.com/PIYUSH-MISHRA-00) on GitHub, or through
+a [private security advisory](https://github.com/ni-sh-a-char/RESENTMENT---kernel/security/advisories/new)
+if the matter is sensitive.
 
 ## Licence and provenance
 
