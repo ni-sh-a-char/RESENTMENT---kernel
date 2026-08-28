@@ -1,3 +1,17 @@
+<p align="center">
+  <img src="media/social-preview.png" alt="RESENTMENT 2.0.0 — a capability-secure, AI-native kernel" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml"><img src="https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENCE"><img src="https://img.shields.io/badge/licence-Apache--2.0-1c212b?style=flat-square&labelColor=08090c" alt="Apache 2.0"></a>
+  <a href="docs/PORTING.md"><img src="https://img.shields.io/badge/arch-x86__64%20%7C%20aarch64%20%7C%20riscv64-4fd6d2?style=flat-square&labelColor=08090c" alt="x86_64, aarch64, riscv64"></a>
+  <a href="#verification"><img src="https://img.shields.io/badge/tests-1440%20host%20%2B%20180%20QEMU-64d68a?style=flat-square&labelColor=08090c" alt="1440 host and 180 QEMU assertions"></a>
+  <a href="https://buymeacoffee.com/piyushmishra00"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-e0a545?style=flat-square&logo=buymeacoffee&logoColor=08090c&labelColor=08090c" alt="Buy me a coffee"></a>
+</p>
+
+---
+
 # RESENTMENT
 
 **A capability-secure, AI-native kernel.**
@@ -7,11 +21,6 @@
         a capability-secure, AI-native kernel
         x86_64 on pc, firmware multiboot2, 4 cpu
 ```
-
-[![CI](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml)
-[![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue.svg)](LICENCE)
-[![Architectures](https://img.shields.io/badge/arch-x86__64%20%7C%20aarch64%20%7C%20riscv64-brightgreen.svg)](docs/PORTING.md)
-[![Tests](https://img.shields.io/badge/tests-1440%20host%20%2B%20180%20QEMU-brightgreen.svg)](#verification)
 
 RESENTMENT is a from-scratch operating system kernel for x86_64, ARM64 and
 RISC-V. It is not a Unix clone. It is built around three ideas that a
@@ -344,14 +353,14 @@ reachable, because the starting point is part of the story.
 
 | Branch | What it is |
 |---|---|
-| `main` | the current state; releases are tagged from here |
-| `develop` | integration, for work that wants a soak first |
-| `release/2.x` | the 2.x line, at `v2.0.0` |
-| `release/1.x` | the 1.x line, at `v1.0.0` — the original kernel, frozen |
+| `main` | the current state — the kernel, the website, and the project files. Releases are tagged from here. |
+| `v2.0.0` | this generation of the kernel, matching the `v2.0.0` tag. Its README is the same as `main`'s. |
+| `v1.0.0` | the original hobby kernel, frozen at the `v1.0.0` tag |
+| `develop` | integration, for work that wants a soak before it reaches `main` |
 
-The release branches are named after the *line* rather than the tag: a branch
-and a tag sharing a name makes every `git checkout` of it ambiguous, and git
-refuses to create the second one anyway.
+A branch and a tag here share a name, which git allows but treats as ambiguous:
+`git checkout v2.0.0` will warn. Say `git checkout refs/heads/v2.0.0` for the
+branch or `git checkout refs/tags/v2.0.0` for the tag when it matters.
 
 ## Press kit
 
@@ -373,6 +382,14 @@ All of it regenerates with `make media`. The cards come from
 the numbers in the suite.
 
 ---
+
+## Support
+
+RESENTMENT is built in the open and will stay that way. If it is useful to you,
+or you simply enjoyed reading how the bugs were found, you can
+[buy me a coffee](https://buymeacoffee.com/piyushmishra00).
+
+<a href="https://buymeacoffee.com/piyushmishra00"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-e0a545?style=for-the-badge&logo=buymeacoffee&logoColor=08090c&labelColor=08090c" alt="Buy me a coffee"></a>
 
 ## Licence
 

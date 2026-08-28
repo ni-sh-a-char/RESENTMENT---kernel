@@ -219,6 +219,33 @@ h1.display .grad {
 }
 .btn.primary:hover { filter: brightness(1.06); }
 
+/* Support. Brass outline on the page ground rather than the platform's own
+   yellow, so it belongs to this palette instead of shouting over it. It is a
+   quiet offer, not a call to action competing with the documentation. */
+.btn.coffee {
+  background: transparent;
+  border-color: var(--brass-dim);
+  color: var(--brass);
+}
+.btn.coffee:hover {
+  border-color: var(--brass);
+  background: color-mix(in srgb, var(--brass) 10%, transparent);
+}
+.btn.coffee svg { width: 17px; height: 17px; }
+
+/* The same offer in the footer, at the weight of a footnote. */
+.support-line {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--fg-faint); font-size: 13.5px;
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 14px; margin-top: 14px;
+  transition: .15s ease;
+}
+.support-line:hover {
+  color: var(--brass); border-color: var(--brass-dim); text-decoration: none;
+}
+.support-line svg { width: 15px; height: 15px; color: var(--brass); }
+
 .hero-meta {
   margin-top: 34px; display: flex; flex-wrap: wrap; gap: 10px 26px;
   font-family: var(--mono); font-size: 12.5px; color: var(--fg-faint);

@@ -9,16 +9,17 @@ of what matters is enforced by `make check` rather than by review.
 
 | Branch | What it is |
 |---|---|
-| `main` | The current state of the project. Tagged releases are cut from here. |
+| `main` | The current state: the kernel, the documentation site, and the project files. Tagged releases are cut from here. |
+| `v2.0.0` | This generation of the kernel, matching the `v2.0.0` tag. Its `README.md` is identical to `main`'s. |
+| `v1.0.0` | The original hobby kernel, frozen at the `v1.0.0` tag. Kept because the starting point is part of the story. |
 | `develop` | Integration. Work lands here first when it is large enough to want a soak before it reaches `main`. |
-| `release/2.x` | The 2.x line, at `v2.0.0`. Fixes for a shipped 2.x release go here and are merged forward. |
-| `release/1.x` | The 1.x line, at `v1.0.0` - the original hobby kernel, frozen. Kept reachable because the starting point is part of the story. |
 
-The release branches are named `release/N.x` rather than after the tags they
-contain. A branch and a tag with the same name make every `git checkout` of
-that name ambiguous, and git will refuse to create the second one; naming the
-*line* rather than the *point* avoids the collision entirely and leaves the
-tags to do what tags are for.
+Send pull requests against `main` unless a maintainer asks otherwise. The
+version branches are snapshots, not development lines.
+
+A branch and a tag here share a name, which git allows but treats as ambiguous:
+`git checkout v2.0.0` will warn. Say `git checkout refs/heads/v2.0.0` for the
+branch or `git checkout refs/tags/v2.0.0` for the tag when it matters.
 
 ## Before you send anything
 
