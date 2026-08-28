@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/social-preview.png" alt="RESENTMENT 2.0.0 — a capability-secure, AI-native kernel" width="100%">
+  <img src="https://raw.githubusercontent.com/ni-sh-a-char/RESENTMENT---kernel/main/media/social-preview.png" alt="RESENTMENT 2.0.0 — a capability-secure, AI-native kernel" width="100%">
 </p>
 
 <p align="center">
@@ -248,7 +248,7 @@ Honest, because a status table that overstates is worse than none.
 | Console: VGA, framebuffer, serial, PS/2 | **working** |
 | Syscall entry (SYSCALL/SYSRET, int 0x80) | **working** |
 | Ring-3 userspace | **working on all three** — ELF64 loader, per-process address spaces, syscalls from user mode |
-| PCI, block, network drivers | device model only — see [ROADMAP](ROADMAP.md) |
+| PCI, block, network drivers | device model only — see [ROADMAP](https://github.com/ni-sh-a-char/RESENTMENT---kernel/blob/main/ROADMAP.md) |
 
 ### Verification
 
@@ -334,7 +334,7 @@ stub. Nothing above `arch/` includes an architecture header.
 - [SMP](docs/SMP.md) — how each architecture starts its other cores
 - [Ring 3](docs/USERSPACE.md) — the ELF loader, and what a process may do
 - [The AI subsystem](docs/AI.md) — tensors, scheduling, and the forward pass
-- [Contributing](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Security](SECURITY.md) · [Governance](GOVERNANCE.md)
+- [Contributing](https://github.com/ni-sh-a-char/RESENTMENT---kernel/blob/main/CONTRIBUTING.md) · [Roadmap](https://github.com/ni-sh-a-char/RESENTMENT---kernel/blob/main/ROADMAP.md) · [Security](https://github.com/ni-sh-a-char/RESENTMENT---kernel/blob/main/SECURITY.md) · [Governance](https://github.com/ni-sh-a-char/RESENTMENT---kernel/blob/main/GOVERNANCE.md)
 
 The full documentation site, including everything above rendered for reading
 rather than for grepping, is at **<https://ni-sh-a-char.github.io/RESENTMENT---kernel/>**.
@@ -351,12 +351,16 @@ several rather than the only thing the kernel could do.
 and wrote to the VGA text buffer. `v2.0.0` is this tree. Both tags stay
 reachable, because the starting point is part of the story.
 
-| Branch | What it is |
+| Branch | What it holds |
 |---|---|
-| `main` | the current state — the kernel, the website, and the project files. Releases are tagged from here. |
-| `v2.0.0` | this generation of the kernel, matching the `v2.0.0` tag. Its README is the same as `main`'s. |
+| `main` | everything: the kernel, the documentation site, and the community files. Releases are tagged from here. |
+| `v2.0.0` | the kernel alone — sources, headers, tests, build and technical docs. No website, no community files. |
 | `v1.0.0` | the original hobby kernel, frozen at the `v1.0.0` tag |
 | `develop` | integration, for work that wants a soak before it reaches `main` |
+
+`README.md` is identical on `main` and `v2.0.0`, which is why the links above
+that point at community files are absolute: those files live only on `main`.
+`make site` and `make media` likewise only work there.
 
 A branch and a tag here share a name, which git allows but treats as ambiguous:
 `git checkout v2.0.0` will warn. Say `git checkout refs/heads/v2.0.0` for the
@@ -376,9 +380,9 @@ reads it.
 | `media/social-linkedin.png` | 1200×627 — LinkedIn and Facebook link cards |
 | `media/RESENTMENT-2.0.0-social-kit.docx` | posts, talking points, fact sheet |
 
-All of it regenerates with `make media`. The cards come from
-[`tools/mksocial.py`](tools/mksocial.py) and the document from
-[`tools/mkdocx.py`](tools/mkdocx.py), so the numbers in them cannot drift from
+All of it lives on `main` and regenerates with `make media`. The cards come
+from [`tools/mksocial.py`](https://github.com/ni-sh-a-char/RESENTMENT---kernel/blob/main/tools/mksocial.py) and the document from
+[`tools/mkdocx.py`](https://github.com/ni-sh-a-char/RESENTMENT---kernel/blob/main/tools/mkdocx.py), so the numbers in them cannot drift from
 the numbers in the suite.
 
 ---

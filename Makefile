@@ -393,11 +393,19 @@ qemu-test-all: all-arch $(MB1_ELF) $(DIST)/initrd.tar
 
 # The documentation site is generated from the Markdown in this tree, so the
 # published docs and the docs a contributor reads cannot drift apart.
+# The site generator and the media tools live on the main branch only, so these
+# say where they are rather than failing with "no such file".
+define need_main_branch
+	@test -f $(1) || { 	  echo "$(1) is on the main branch; this branch carries the kernel only."; 	  exit 1; }
+endef
+
 site:
+	$(call need_main_branch,tools/mksite.py)
 	$(Q)$(PYTHON) tools/mksite.py
 	$(Q)$(PYTHON) tools/checklinks.py site
 
 site-serve:
+	$(call need_main_branch,tools/mksite.py)
 	$(Q)$(PYTHON) tools/mksite.py --serve
 
 # ------------------------------------------------------------------- media
@@ -407,6 +415,7 @@ site-serve:
 # number or the test count changes. Both need packages the kernel build does
 # not, so they are their own target and not part of `all`.
 media:
+	$(call need_main_branch,tools/mksocial.py)
 	$(Q)$(PYTHON) tools/mksocial.py
 	$(Q)$(PYTHON) tools/mkdocx.py
 
