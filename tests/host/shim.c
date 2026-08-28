@@ -13,6 +13,21 @@
  */
 #define RK_HOSTED 1
 
+/* The platform headers come first, and the order is load-bearing.
+ *
+ * <rk/printf.h> maps snprintf onto the kernel's own implementation so that
+ * kernel sources compiled for the host keep using it. If <stdio.h> is
+ * processed after that macro exists, glibc declares *rk_snprintf* instead of
+ * snprintf - complete with the asm redirection and format attributes it
+ * attaches to its own - and every call to rk_snprintf then lands in glibc.
+ * The kernel's %pB extension is not glibc's, so it prints a pointer and a
+ * stray letter, and only on glibc: the failure does not reproduce under a
+ * toolchain whose libc declares snprintf plainly. */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
 #include <rk/types.h>
 #include <rk/arch.h>
 #include <rk/boot.h>
@@ -27,11 +42,6 @@
 #include <rk/panic.h>
 #include <rk/errno.h>
 #include <rk/printf.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
 
 /* ------------------------------------------------------ synthetic memory */
 

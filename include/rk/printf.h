@@ -20,7 +20,18 @@ typedef __builtin_va_list va_list;
 /* On a hosted test build these would collide with libc, so the kernel's own
  * implementations are renamed and every in-kernel call site follows them.
  * That way the tests exercise this code rather than the host's. */
+/* Kernel sources compiled for the host keep calling snprintf and keep getting
+ * the kernel's, extensions included. The undef matters: glibc defines snprintf
+ * as a fortifying macro, and redefining one macro over another is a warning
+ * that some builds promote to an error.
+ *
+ * Include the platform headers BEFORE this one. Processed the other way round,
+ * glibc's own declaration of snprintf is macro-expanded into a declaration of
+ * rk_snprintf, asm redirection and all, and every rk_snprintf call in the
+ * program silently becomes a glibc call. */
 #ifdef RK_HOSTED
+#undef snprintf
+#undef vsnprintf
 #define snprintf  rk_snprintf
 #define vsnprintf rk_vsnprintf
 #endif

@@ -51,6 +51,11 @@ which is what distributions actually package. With `-ffreestanding -nostdlib`
 the second produces the same objects, and it is far easier to install than a
 hand-built bare-metal toolchain.
 
+You rarely have to ask for it. `TOOLCHAIN` defaults to `zig` when `zig` is on
+`PATH` and to `gcc` when it is not, so a machine that has never run
+`make toolchain` builds with what it has rather than failing with
+`zig: not found`.
+
 On Debian or Ubuntu:
 
 ```sh
@@ -72,9 +77,11 @@ sudo apt install build-essential nasm gcc-aarch64-linux-gnu \
 | `make run-script SCRIPT=/boot/bin/attest.she` | boot, run one script, power off |
 | `make test` | the host test suite |
 | `make qemu-test` | boot and drive the shell over a serial link |
+| `make qemu-test-all` | every architecture, single core and on four |
 | `make verify` | check the linked image is actually bootable |
 | `make kaalka-check` | compare Kaalka against the reference implementation |
 | `make check` | test + verify + kaalka-check |
+| `make site` / `make site-serve` | build the documentation site from `docs/` |
 | `make info` | show the resolved build configuration |
 | `make clean` |  |
 
@@ -200,9 +207,39 @@ reached the shell prompt
   ok    xs |> filter(fun(n) -> n % 2 is 0) |> map(fun(n) -> n / 2) |> sum()  ->  35
   ok    read("/boot/etc/boot.she")  ->  --allow-read
   ok    .allow read  ->  granted
+  ok    .run /boot/bin/attest.she  ->  comparing two hashes
   ...
-all 14 shell checks passed
+all 28 checks passed
 ```
+
+`make qemu-test-all` is the one to run before a release. It builds every
+architecture and boots each of them twice — once single-core, once with
+`-smp 4` — putting all 28 checks through each. The multiprocessor runs also
+require the boot log to show every core reporting in, so a kernel that boots on
+one core and wedges on four fails here rather than on somebody's laptop.
+
+```
+=== x86_64 ==================================================
+  x86_64: all 28 checks passed
+=== aarch64 =================================================
+  aarch64: all 28 checks passed
+=== riscv64 =================================================
+  riscv64: all 28 checks passed
+=== x86_64-smp ==============================================
+  x86_64-smp: all 28 checks passed
+=== aarch64-smp =============================================
+  aarch64-smp: all 28 checks passed
+=== riscv64-smp =============================================
+  riscv64-smp: all 28 checks passed
+
+every check passed on x86_64, aarch64, riscv64,
+x86_64-smp, aarch64-smp, riscv64-smp
+```
+
+The last two checks run `/boot/bin/attest.she`, which is the scenario the whole
+design exists for rather than a unit test: seal a snapshot of the machine, read
+the clock angles Kaalka is keying from, prove the digest holds across pure
+computation, then change the machine and watch its name change with it.
 
 And the kernel runs its own self-tests on every boot, on the machine that is
 about to be trusted:
