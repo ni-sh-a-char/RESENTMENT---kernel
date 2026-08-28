@@ -19,7 +19,11 @@
 ARCH        ?= x86_64
 BUILD       ?= build/$(ARCH)
 DIST        ?= dist/$(ARCH)
-TOOLCHAIN   ?= zig
+# Zig is preferred because `make toolchain` fetches it and it targets all three
+# architectures from one binary. But it is not required: if it is not on PATH,
+# fall back to the system compiler rather than failing with `zig: not found`,
+# which is what a CI runner and a distribution package both give you.
+TOOLCHAIN   ?= $(shell command -v $(ZIG) >/dev/null 2>&1 && echo zig || echo gcc)
 V           ?= 0
 
 VERSION     := 2.0.0
