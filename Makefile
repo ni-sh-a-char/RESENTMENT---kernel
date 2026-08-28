@@ -76,6 +76,13 @@ ifeq ($(ARCH),x86_64)
 endif
 ifeq ($(ARCH),aarch64)
   ARCH_CFLAGS := -mgeneral-regs-only
+  ifneq ($(TOOLCHAIN),zig)
+    # GCC's outline atomics call into libgcc (__aarch64_ldadd4_acq_rel and
+    # friends) so that one binary can use LSE where the CPU has it. A
+    # freestanding kernel does not link libgcc, so every atomic becomes an
+    # undefined symbol at link time. Inline them instead.
+    ARCH_CFLAGS += -mno-outline-atomics
+  endif
   AI_CFLAGS   :=
   QEMU        := qemu-system-aarch64
   QEMUFLAGS   := -M virt -cpu cortex-a72 -m 512M -nographic \
@@ -84,10 +91,16 @@ endif
 ifeq ($(ARCH),riscv64)
   # medany, not medlow: the kernel is linked at 0x80200000, past the 2 GiB
   # that medlow's absolute addressing can reach.
+  #
+  # zig cc selects the RISC-V feature set from the target triple and rejects
+  # -march. GCC needs it spelled out, and needs zicsr and zifencei named
+  # explicitly: binutils 2.38 split the CSR and fence.i instructions out of the
+  # base ISA, so a plain rv64imac assembles every csrr and csrw in this port
+  # into "unrecognized opcode".
   ifeq ($(TOOLCHAIN),zig)
     ARCH_CFLAGS := -mcmodel=medany
   else
-    ARCH_CFLAGS := -mcmodel=medany -march=rv64imac -mabi=lp64
+    ARCH_CFLAGS := -mcmodel=medany -march=rv64imac_zicsr_zifencei -mabi=lp64
   endif
   AI_CFLAGS   := $(ARCH_CFLAGS)
   QEMU        := qemu-system-riscv64
