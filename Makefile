@@ -22,7 +22,7 @@ DIST        ?= dist/$(ARCH)
 TOOLCHAIN   ?= zig
 V           ?= 0
 
-VERSION     := 0.2.0
+VERSION     := 2.0.0
 CODENAME    := kaalachakra
 GIT_REV     := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
@@ -129,7 +129,7 @@ KERNEL_ELF    := $(DIST)/resentment.elf
 
 # ------------------------------------------------------------------ targets
 
-.PHONY: all kernel iso run run-iso run-script debug test verify check clean \
+.PHONY: all kernel iso run run-iso run-script debug test verify check clean qemu-test-all site site-serve \
         distclean help info all-arch initrd toolchain qemu-test kaalka-check
 
 all: kernel
@@ -247,6 +247,22 @@ debug: $(MB1_ELF)
 qemu-test: $(MB1_ELF) $(DIST)/initrd.tar
 	$(Q)$(PYTHON) tools/qemu-expect.py --qemu $(QEMU) \
 	    --kernel $(MB1_ELF) --initrd $(DIST)/initrd.tar
+
+# Every architecture, single core and on four. Needs all three images built,
+# which is what all-arch is for.
+qemu-test-all: all-arch $(MB1_ELF) $(DIST)/initrd.tar
+	$(Q)$(PYTHON) tools/qemu-expect.py --all
+
+# ------------------------------------------------------------------- site
+
+# The documentation site is generated from the Markdown in this tree, so the
+# published docs and the docs a contributor reads cannot drift apart.
+site:
+	$(Q)$(PYTHON) tools/mksite.py
+	$(Q)$(PYTHON) tools/checklinks.py site
+
+site-serve:
+	$(Q)$(PYTHON) tools/mksite.py --serve
 
 # -------------------------------------------------------------------- tests
 

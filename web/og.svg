@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e0a545"/>
+      <stop offset="1" stop-color="#4fd6d2"/>
+    </linearGradient>
+    <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
+      <path d="M56 0H0V56" fill="none" stroke="#1c212b" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glow" cx="50%" cy="0%" r="70%">
+      <stop offset="0" stop-color="#e0a545" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#e0a545" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="#08090c"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <g transform="translate(96,120)">
+    <circle cx="34" cy="34" r="30" fill="none" stroke="#2a313f" stroke-width="2.4"/>
+    <path d="M34 34V12" stroke="#e0a545" stroke-width="4" stroke-linecap="round"/>
+    <path d="M34 34l16 10" stroke="#4fd6d2" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="34" cy="34" r="4" fill="#e6e9ef"/>
+    <text x="88" y="46" font-family="Inter, Helvetica, Arial, sans-serif" font-size="30" font-weight="600" fill="#9aa4b6" letter-spacing="6">RESENTMENT 2.0.0</text>
+  </g>
+
+  <text x="96" y="330" font-family="Inter, Helvetica, Arial, sans-serif" font-size="86" font-weight="700" fill="#e6e9ef" letter-spacing="-3">A capability-secure,</text>
+  <text x="96" y="428" font-family="Inter, Helvetica, Arial, sans-serif" font-size="86" font-weight="700" fill="url(#g)" letter-spacing="-3">AI-native kernel.</text>
+
+  <text x="96" y="504" font-family="Inter, Helvetica, Arial, sans-serif" font-size="27" fill="#9aa4b6">Authority expires. The system is a graph you can hash. Inference is a scheduling class.</text>
+
+  <g font-family="JetBrains Mono, Consolas, monospace" font-size="22" fill="#6b7488">
+    <text x="96" y="566">x86_64</text>
+    <text x="234" y="566">aarch64</text>
+    <text x="382" y="566">riscv64</text>
+    <text x="530" y="566" fill="#4fd6d2">SMP</text>
+    <text x="614" y="566">1440 host assertions</text>
+    <text x="892" y="566">0 dependencies</text>
+  </g>
+</svg>

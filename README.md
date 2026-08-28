@@ -3,10 +3,15 @@
 **A capability-secure, AI-native kernel.**
 
 ```
-  ####  RESENTMENT 0.2.0 "kaalachakra"
+  ####  RESENTMENT 2.0.0 "kaalachakra"
         a capability-secure, AI-native kernel
-        x86_64 on pc, firmware multiboot2
+        x86_64 on pc, firmware multiboot2, 4 cpu
 ```
+
+[![CI](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml)
+[![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue.svg)](LICENCE)
+[![Architectures](https://img.shields.io/badge/arch-x86__64%20%7C%20aarch64%20%7C%20riscv64-brightgreen.svg)](docs/PORTING.md)
+[![Tests](https://img.shields.io/badge/tests-1440%20host%20%2B%206%20QEMU%20targets-brightgreen.svg)](#verification)
 
 RESENTMENT is a from-scratch operating system kernel for x86_64, ARM64 and
 RISC-V. It is not a Unix clone. It is built around three ideas that a
@@ -212,24 +217,26 @@ Honest, because a status table that overstates is worse than none.
 
 | Subsystem | State |
 |---|---|
-| Boot: higher-half, Multiboot 1 and 2 | **working** — x86_64 boots to a shell in ~100 ms |
+| Boot to an interactive shell | **working on all three architectures**, ~120 ms |
+| x86_64: higher-half, Multiboot 1 and 2, APIC, huge pages | **working**, tested |
+| aarch64: EL2→EL1, MMU, GICv2, generic timer, PL011, PSCI | **working**, tested |
+| riscv64: SBI, PLIC, NS16550, supervisor traps | **working**, tested |
+| SMP | **working on all three** — ACPI MADT + AP trampoline, PSCI `CPU_ON`, SBI HSM; tested on 4 and 8 cores |
 | Physical memory (buddy), heap (slab) | **working**, tested |
-| Paging, address spaces, copy-on-write | **working** on x86_64 |
-| Scheduler, 4 classes, deadline admission | **working**, single core |
+| Paging, address spaces, copy-on-write | **working** |
+| Scheduler, 4 classes, deadline admission, affinity | **working**, multiprocessor, reschedule IPI |
 | Capabilities, Kaalka seals, revocation | **working**, tested |
 | Runtime graph, digests, snapshots, memfab | **working**, tested |
 | SHE compiler, VM, stdlib, shell | **working**, tested |
-| Kaalka: trig, transforms, seals, envelopes | **working**, cross-checked |
+| Kaalka: trig, transforms, seals, envelopes | **working**, cross-checked byte-for-byte |
 | Crypto: SHA-256, HMAC, HKDF, ChaCha20, CSPRNG | **working**, known-answer tested |
 | VFS, ramfs, devfs, graphfs, initrd | **working** |
 | IPC endpoints, channels, notifications | **working** |
 | AI: tensors, ops, accel HAL, KV cache, model registry | **working**, GGUF parsed |
 | Console: VGA, framebuffer, serial, PS/2 | **working** |
 | Syscall entry (SYSCALL/SYSRET, int 0x80) | **working** |
-| ARM64 and RISC-V ports | **build and link**; boot untested, MMU not enabled |
-| SMP | discovery works; the AP trampoline is not written |
-| Ring-3 userspace | entry path exists; no ELF loader yet |
-| PCI, block, network drivers | device model only |
+| Ring-3 userspace | entry path exists; no ELF loader yet — see [ROADMAP](ROADMAP.md) |
+| PCI, block, network drivers | device model only — see [ROADMAP](ROADMAP.md) |
 
 ### Verification
 
@@ -239,7 +246,29 @@ Honest, because a status table that overstates is worse than none.
 | `make verify` | the linked image is loadable, checked the way a bootloader reads it |
 | `make kaalka-check` | the fixed-point port is byte-identical to the reference |
 | `make qemu-test` | the kernel boots and its shell answers correctly over a serial link |
+| `make qemu-test-all` | all three architectures, each on one core and on four |
 | `make check` | the first three together |
+
+`make qemu-test-all` is the one that matters before a release. It builds every
+architecture, boots each twice — once single-core, once with `-smp 4` — and
+drives 26 assertions through the shell over a serial socket each time:
+
+```
+=== x86_64 ==================================================
+  x86_64: all 26 checks passed
+=== aarch64 =================================================
+  aarch64: all 23 checks passed
+=== riscv64 =================================================
+  riscv64: all 23 checks passed
+=== x86_64-smp ==============================================
+  x86_64-smp: all 26 checks passed
+=== aarch64-smp =============================================
+  aarch64-smp: all 23 checks passed
+=== riscv64-smp =============================================
+  riscv64-smp: all 23 checks passed
+
+every check passed on x86_64, aarch64, riscv64, x86_64-smp, aarch64-smp, riscv64-smp
+```
 
 Plus seven self-tests that run on every boot, on the machine about to be
 trusted — allocator, crypto, Kaalka, graph, capabilities, AI, SHE. A kernel
@@ -287,7 +316,11 @@ stub. Nothing above `arch/` includes an architecture header.
 - [The runtime graph](docs/GRAPH.md) — digests, snapshots, replay, the fabric
 - [The AI subsystem](docs/AI.md) — tensors, scheduling, paged attention
 - [Porting](docs/PORTING.md) — what a new architecture has to provide
-- [Contributing](CONTRIBUTING.md)
+- [SMP](docs/SMP.md) — how each architecture starts its other cores
+- [Contributing](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Security](SECURITY.md) · [Governance](GOVERNANCE.md)
+
+The full documentation site, including everything above rendered for reading
+rather than for grepping, is at **<https://ni-sh-a-char.github.io/RESENTMENT---kernel/>**.
 
 ---
 
@@ -296,6 +329,10 @@ stub. Nothing above `arch/` includes an architecture header.
 RESENTMENT began as a hobby kernel that printed one line at boot. That line is
 still here, in `kernel/drivers/console/vga.c`, now one console backend among
 several rather than the only thing the kernel could do.
+
+`v1.0.0` tags that kernel as it stood: a Multiboot stub that reached long mode
+and wrote to the VGA text buffer. `v2.0.0` is this tree. Both tags stay
+reachable, because the starting point is part of the story.
 
 ## Licence
 

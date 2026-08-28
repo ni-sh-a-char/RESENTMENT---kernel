@@ -13,7 +13,7 @@ OUT="${OUT:-build/local-$ARCH}"
 DIST="${DIST:-dist/$ARCH}"
 LINK="${LINK:-1}"
 
-VERSION=0.2.0
+VERSION=2.0.0
 CODENAME=kaalachakra
 GITREV=$(git rev-parse --short HEAD 2>/dev/null || echo local)
 

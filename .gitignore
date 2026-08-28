@@ -11,3 +11,4 @@
 *.pdb
 *.swp
 .DS_Store
+site/

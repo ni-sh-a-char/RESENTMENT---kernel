@@ -1,0 +1,12 @@
+# Every change gets a review from a maintainer.
+*                       @PIYUSH-MISHRA-00
+
+# The parts where a mistake is a vulnerability rather than a defect.
+/kernel/cap/            @PIYUSH-MISHRA-00
+/kernel/crypto/         @PIYUSH-MISHRA-00
+/kernel/syscall/        @PIYUSH-MISHRA-00
+/kernel/she/            @PIYUSH-MISHRA-00
+/SECURITY.md            @PIYUSH-MISHRA-00
+
+# The machine-specific code, where a change cannot be reviewed by reading alone.
+/arch/                  @PIYUSH-MISHRA-00

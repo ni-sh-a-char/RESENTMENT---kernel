@@ -318,13 +318,18 @@ Named so that the absences are choices rather than oversights:
 - **No POSIX.** The syscall table is capability-oriented; most of what a POSIX
   kernel exposes is an IPC message to a service the caller holds an endpoint
   for. A compatibility layer would be a userspace server.
-- **No SMP scheduling yet.** Run queues, IPI vectors and per-CPU state are
-  already per-core; what is missing is the application-processor trampoline.
 - **No network stack.** The device model and the driver binding are there; the
   protocol stack is not, and `rk_netdev_receive` counts and drops rather than
   pretending.
 - **No ELF loader.** The ring-3 entry path and the SYSCALL MSRs are wired; the
   loader that would use them is not written.
-- **MMU off on ARM64 and RISC-V.** Both ports build, link and are identity
-  mapped. Everything above `arch/` already goes through `arch_map`, so enabling
-  paging is confined to four functions per port.
+- **One shared run queue, not per-CPU queues.** SMP works on all three
+  architectures (see [SMP.md](SMP.md)), but balancing is by construction rather
+  than by policy: any idle core takes the next runnable thread. Splitting the
+  queue per core buys throughput on a large machine and costs a stealing policy,
+  an imbalance metric and a class of subtle bug, so it waits for a profile that
+  shows the lock actually contended.
+- **No TLB shootdown traffic.** `RK_IPI_TLB` is wired end to end and handled;
+  nothing sends it, because no userspace yet shares an address space across
+  cores in a way that could unmap under one.
+- **No NUMA awareness.** Every core is assumed equidistant from memory.

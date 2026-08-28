@@ -58,8 +58,12 @@ jobs:
   # The integration test: boot the kernel and drive its shell over a serial
   # link. Everything from the interrupt controller to the SHE compiler has to
   # work for one line to come back correct.
+  #
+  # Every architecture, each one twice: single core, then with four. A kernel
+  # that boots on one core and wedges on four is a kernel that works on nobody's
+  # laptop, and that failure only ever shows up under a real workload.
   boot:
-    name: boot and drive the shell
+    name: boot and drive the shell on every architecture
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -69,23 +73,25 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential nasm python3 qemu-system-x86
+            build-essential nasm python3 \
+            gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu \
+            qemu-system-x86 qemu-system-arm qemu-system-misc
 
-      - name: Build
-        run: make TOOLCHAIN=gcc
+      - name: Build every architecture
+        run: make TOOLCHAIN=gcc all-arch
 
-      - name: Boot and check the shell
-        run: make TOOLCHAIN=gcc qemu-test
+      - name: Boot and check the shell, single core and on four
+        run: make TOOLCHAIN=gcc qemu-test-all
 
       - name: Run the attestation demo headlessly
         run: make TOOLCHAIN=gcc run-script SCRIPT=/boot/bin/attest.she
 
-      - name: Keep the serial transcript
+      - name: Keep the serial transcripts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: boot-transcript
-          path: build/qemu-expect.log
+          name: boot-transcripts
+          path: build/qemu-expect-*.log
           if-no-files-found: ignore
 
   # A GRUB ISO is how this boots on real hardware, so it is built even though
