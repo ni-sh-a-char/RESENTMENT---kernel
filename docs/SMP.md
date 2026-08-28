@@ -199,7 +199,7 @@ make qemu-test-all
 ```
 
 builds every architecture and boots each one twice, once single-core and once
-with `-smp 4`, running the full 26-assertion shell suite each time. The
+with `-smp 4`, running the full 28-assertion shell suite each time. The
 multiprocessor runs additionally require the boot log to show every core
 reporting in.
 

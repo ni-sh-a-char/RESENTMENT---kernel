@@ -11,7 +11,7 @@
 [![CI](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml)
 [![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue.svg)](LICENCE)
 [![Architectures](https://img.shields.io/badge/arch-x86__64%20%7C%20aarch64%20%7C%20riscv64-brightgreen.svg)](docs/PORTING.md)
-[![Tests](https://img.shields.io/badge/tests-1440%20host%20%2B%206%20QEMU%20targets-brightgreen.svg)](#verification)
+[![Tests](https://img.shields.io/badge/tests-1440%20host%20%2B%20168%20QEMU-brightgreen.svg)](#verification)
 
 RESENTMENT is a from-scratch operating system kernel for x86_64, ARM64 and
 RISC-V. It is not a Unix clone. It is built around three ideas that a
@@ -218,6 +218,8 @@ Honest, because a status table that overstates is worse than none.
 | Subsystem | State |
 |---|---|
 | Boot to an interactive shell | **working on all three architectures**, ~120 ms |
+| Wall clock | **working on all three** — CMOS, PL031, goldfish; Kaalka keys from real time everywhere |
+| Initial ramdisk | **working on all three** — a bootloader module when there is one, otherwise linked into the image |
 | x86_64: higher-half, Multiboot 1 and 2, APIC, huge pages | **working**, tested |
 | aarch64: EL2→EL1, MMU, GICv2, generic timer, PL011, PSCI | **working**, tested |
 | riscv64: SBI, PLIC, NS16550, supervisor traps | **working**, tested |
@@ -251,21 +253,25 @@ Honest, because a status table that overstates is worse than none.
 
 `make qemu-test-all` is the one that matters before a release. It builds every
 architecture, boots each twice — once single-core, once with `-smp 4` — and
-drives 26 assertions through the shell over a serial socket each time:
+drives 28 assertions through the shell over a serial socket each time. The last
+two run the attestation demo end to end, which is the scenario the whole design
+exists for: seal a snapshot, read the clock angles Kaalka is keying from, prove
+the digest holds across pure computation, then change the machine and watch its
+name change with it.
 
 ```
 === x86_64 ==================================================
-  x86_64: all 26 checks passed
+  x86_64: all 28 checks passed
 === aarch64 =================================================
-  aarch64: all 23 checks passed
+  aarch64: all 28 checks passed
 === riscv64 =================================================
-  riscv64: all 23 checks passed
+  riscv64: all 28 checks passed
 === x86_64-smp ==============================================
-  x86_64-smp: all 26 checks passed
+  x86_64-smp: all 28 checks passed
 === aarch64-smp =============================================
-  aarch64-smp: all 23 checks passed
+  aarch64-smp: all 28 checks passed
 === riscv64-smp =============================================
-  riscv64-smp: all 23 checks passed
+  riscv64-smp: all 28 checks passed
 
 every check passed on x86_64, aarch64, riscv64, x86_64-smp, aarch64-smp, riscv64-smp
 ```

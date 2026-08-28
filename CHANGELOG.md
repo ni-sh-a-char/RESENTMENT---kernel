@@ -74,6 +74,19 @@ All three boot to an interactive shell and pass the same test suite.
 - **riscv64** — SBI timer, reset, IPI and hart state management; PLIC, NS16550,
   supervisor traps, and no assumption that the firmware chose hart zero.
 
+### Every architecture, not just x86
+
+- **A wall clock everywhere.** `arch_wallclock_unix` returned zero on ARM64
+  and RISC-V, so Kaalka read every clock angle as zero and derived epoch keys
+  from nothing on two of the three architectures. The PL031 on the ARM virt
+  machine and the goldfish RTC on the RISC-V one are now read, and the answer
+  is sanity-checked against a plausible window rather than trusted.
+- **A `/boot` everywhere.** QEMU hands no module to a bare ELF on either virt
+  machine, so the initial ramdisk was x86-only. It is now linked into the
+  image as well - a bootloader module still wins at run time - which means the
+  filesystem, the boot script and the permission model are exercised on all
+  three rather than on one.
+
 ### Symmetric multiprocessing
 
 New in 2.0.0, and working on all three architectures. See
@@ -102,8 +115,11 @@ New in 2.0.0, and working on all three architectures. See
 
 - 1440 host assertions against the real kernel sources on a synthetic machine
 - 7 self-tests on every boot, on the machine about to be trusted
-- 26 shell checks driven over a real serial link under QEMU, against **six
-  targets**: each of the three architectures single-core and again on four cores
+- 28 shell checks driven over a real serial link under QEMU, against **six
+  targets**: each of the three architectures single-core and again on four
+  cores. The last two run the attestation demo end to end on every one of
+  them, which exercises snapshotting, sealing, the clock angles and digest
+  stability in a single scenario
 - boot image structurally verified the way a bootloader will read it
 - Kaalka cross-checked against the reference implementation: **100%
   byte-identical** on every vector

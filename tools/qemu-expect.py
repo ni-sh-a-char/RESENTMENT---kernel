@@ -179,6 +179,12 @@ CHECKS = [
     ("let d1 = digest()",               None,    False),
     ("let junk = [1,2,3] |> map(fun(n) -> n * 2)", None, False),
     ("digest() is d1",                  "yes",   False),
+    # The real-life scenario the whole design is for: take a sealed snapshot of
+    # the machine, read the clock angles Kaalka is keying from, prove the digest
+    # is stable across pure computation, then change the machine and watch its
+    # name change with it. Last, because it grants every permission.
+    (".allow all",                      "granted", False),
+    (".run /boot/bin/attest.she",       "comparing two hashes", False),
 ]
 
 BOOT_MUST_CONTAIN = [

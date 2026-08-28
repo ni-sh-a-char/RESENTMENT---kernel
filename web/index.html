@@ -85,7 +85,7 @@ try {
 
         <div class="hero-meta">
           <span><b>1440</b> host assertions</span>
-          <span><b>6</b> QEMU targets, all green</span>
+          <span><b>168</b> QEMU assertions, all green</span>
           <span><b>0</b> dependencies</span>
           <span><b>~120 ms</b> to a shell</span>
         </div>
@@ -267,7 +267,7 @@ try {
     <div class="sec-head">
       <div class="sec-kicker">Portability</div>
       <h2>Three architectures, one test suite</h2>
-      <p>Nothing above <code>arch/</code> includes an architecture header. Each port boots to an interactive shell, uses every core the machine has, and passes the same 23–26 assertions driven over a serial link.</p>
+      <p>Nothing above <code>arch/</code> includes an architecture header. Each port boots to an interactive shell, uses every core the machine has, and passes the same 28 assertions driven over a serial link — including the attestation scenario the whole design exists for.</p>
     </div>
 
     <div class="arches">
@@ -286,6 +286,7 @@ try {
         <header><h3>aarch64</h3><span class="state">boots · SMP</span></header>
         <ul>
           <li>EL2 → EL1, or EL1 directly, depending on what the firmware left</li>
+          <li>PL031 wall clock, so Kaalka keys from real time rather than zero</li>
           <li>39-bit VA MMU, 4 KiB granule, block splitting</li>
           <li>GICv2, generic timer, PL011, PSCI</li>
           <li>Device tree parsing, with a fault-tolerant RAM probe when there is no tree</li>
@@ -296,6 +297,7 @@ try {
         <header><h3>riscv64</h3><span class="state">boots · SMP</span></header>
         <ul>
           <li>SBI for timer, reset, IPI and hart state management</li>
+          <li>goldfish wall clock, so Kaalka keys from real time rather than zero</li>
           <li>PLIC, NS16550, supervisor trap vector</li>
           <li><code>/reserved-memory</code> honoured, so OpenSBI's PMP regions are never touched</li>
           <li>No assumption that the firmware chose hart zero to boot</li>
@@ -351,17 +353,17 @@ try {
 <pre><code>$ make qemu-test-all
 
 === x86_64 ==================================================
-  x86_64: all 26 checks passed
+  x86_64: all 28 checks passed
 === aarch64 =================================================
-  aarch64: all 23 checks passed
+  aarch64: all 28 checks passed
 === riscv64 =================================================
-  riscv64: all 23 checks passed
+  riscv64: all 28 checks passed
 === x86_64-smp ==============================================
-  x86_64-smp: all 26 checks passed
+  x86_64-smp: all 28 checks passed
 === aarch64-smp =============================================
-  aarch64-smp: all 23 checks passed
+  aarch64-smp: all 28 checks passed
 === riscv64-smp =============================================
-  riscv64-smp: all 23 checks passed
+  riscv64-smp: all 28 checks passed
 
 every check passed on x86_64, aarch64, riscv64,
 x86_64-smp, aarch64-smp, riscv64-smp
