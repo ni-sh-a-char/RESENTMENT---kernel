@@ -181,8 +181,14 @@ USER_SRCS := $(wildcard user/src/*.c)
 USER_ELF  := $(BUILD)/user/init
 USER_LD   := $(BUILD)/user/user.ld
 
+# -no-pie as well as -fno-pie: the first is a link-time decision, the second
+# only affects code generation. A gcc configured with PIE by default - which
+# is every distribution's - otherwise compiles this happily and then refuses
+# to link it, complaining about a relocation in .rodata that was never the
+# real problem.
 USER_CFLAGS := -std=gnu11 -ffreestanding -nostdlib -fno-builtin \
                -fno-stack-protector -fno-common -fno-pic -fno-pie \
+               -no-pie -static \
                -Os -Wall -Wextra -Wno-unused-parameter $(EXTRA_CFLAGS)
 
 # Where the program is linked. x86_64 uses the traditional low address; aarch64
