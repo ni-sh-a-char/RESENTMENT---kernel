@@ -1,0 +1,34 @@
+/* SPDX-License-Identifier: Apache-2.0
+ * RESENTMENT - where a user program lands.
+ *
+ * The base is substituted by the build: @USER_BASE@ becomes 0x400000 on
+ * x86_64, for the same reason every Unix uses it: high enough that a null
+ * pointer dereference faults on an unmapped page instead of reading the
+ * program's own header, low enough to leave the whole address space above it
+ * for the heap and the stack. The kernel refuses to map anything below
+ * RK_USER_VA_MIN, so page zero is guaranteed absent.
+ *
+ * On aarch64 it becomes 8 GiB instead, because this port identity maps the
+ * kernel through TTBR0 and the bottom of every address space is therefore
+ * already spoken for. See the note beside RK_USER_VA_MIN in <rk/mm.h>.
+ */
+ENTRY(_start)
+
+SECTIONS
+{
+	. = @USER_BASE@;
+
+	.text : {
+		*(.text.start)
+		*(.text .text.*)
+	}
+
+	. = ALIGN(4096);
+	.rodata : { *(.rodata .rodata.*) }
+
+	. = ALIGN(4096);
+	.data : { *(.data .data.*) }
+	.bss  : { *(.bss .bss.*) *(COMMON) }
+
+	/DISCARD/ : { *(.comment) *(.note*) *(.eh_frame*) }
+}

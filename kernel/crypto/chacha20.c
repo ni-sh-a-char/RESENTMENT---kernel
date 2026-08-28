@@ -16,6 +16,7 @@
 #include <rk/arch.h>
 #include <rk/spinlock.h>
 #include <rk/log.h>
+#include <rk/time.h>
 
 #undef RK_SUBSYS
 #define RK_SUBSYS "random"
@@ -128,16 +129,26 @@ void rk_random_add_entropy(const void *data, size_t len, u32 estimated_bits)
 	if (rng.entropy_bits > 4096)
 		rng.entropy_bits = 4096;
 
-	/* Once there is enough, rekey immediately: an unseeded generator that
-	 * keeps producing output is worse than one that blocks. */
-	if (rng.entropy_bits >= 128) {
-		struct sha256_ctx k;
-		sha256_init(&k);
-		sha256_update(&k, rng.key, sizeof(rng.key));
-		sha256_update(&k, rng.pool, sizeof(rng.pool));
-		sha256_final(&k, rng.key);
+	/* Rekey on every contribution, not only once the estimate crosses the
+	 * threshold.
+	 *
+	 * The threshold governs whether the kernel is willing to *claim* the
+	 * generator is seeded. It must not govern whether the key depends on the
+	 * collected entropy at all - gating the rekey on it left the generator
+	 * running on its initial all-zero key on any machine whose estimate never
+	 * got there, which is every machine without a hardware RNG. The warning
+	 * was accurate and the situation was far worse than the warning implied.
+	 *
+	 * Folding the old key in means a contribution can only ever add
+	 * uncertainty; it can never reduce what the key already depended on. */
+	struct sha256_ctx k;
+	sha256_init(&k);
+	sha256_update(&k, rng.key, sizeof(rng.key));
+	sha256_update(&k, rng.pool, sizeof(rng.pool));
+	sha256_final(&k, rng.key);
+
+	if (rng.entropy_bits >= 128)
 		rng.seeded = true;
-	}
 	rk_secure_zero(d, sizeof(d));
 	spin_unlock_irqrestore(&rng.lock, f);
 }
@@ -166,6 +177,18 @@ void rk_random_init(void)
 		jitter[i] = arch_cycles() - a;
 	}
 	rk_random_add_entropy(jitter, sizeof(jitter), 64);
+
+	/* The wall clock and the cycle counter are mixed in, and credited with
+	 * exactly zero bits. Claiming entropy for a value an attacker can simply
+	 * read would be a lie in the one place a kernel must not tell one.
+	 *
+	 * They are mixed anyway because they differ between boots, and without
+	 * them a machine with no hardware RNG - which under an emulator also means
+	 * no meaningful timing jitter - produces a byte-for-byte identical stream
+	 * on every single boot. That is worth fixing even though it improves no
+	 * entropy estimate. */
+	u64 boot[2] = { (u64)rk_unix_time(), arch_cycles() };
+	rk_random_add_entropy(boot, sizeof(boot), 0);
 
 	if (!rng.seeded)
 		pr_warn("entropy pool is weak: %u bits estimated", rng.entropy_bits);

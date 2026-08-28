@@ -19,6 +19,7 @@
 #include <rk/time.h>
 #include <rk/mm.h>
 #include <rk/sched.h>
+#include <rk/syscall.h>
 #include <rk/panic.h>
 
 #undef RK_SUBSYS
@@ -273,15 +274,25 @@ void aarch64_sync_exception(u64 esr, u64 far, u64 elr, u64 *frame)
 			return;
 	}
 
-	if (ec == 0x15) {   /* SVC from AArch64 */
-		extern s64 aarch64_syscall(void);
-		aarch64_syscall();
+	if (ec == 0x15) {   /* SVC from AArch64: a system call */
+		/* The frame is what SAVE_REGS wrote: x0..x17 in order from the top,
+		 * so the arguments and the call number are read straight out of it
+		 * and the result is written back over the saved x0. ELR already
+		 * points past the SVC, because that is what the hardware sets it to.
+		 */
+		struct rk_syscall_args a = {
+			.nr = frame[8],
+			.a0 = frame[0], .a1 = frame[1], .a2 = frame[2],
+			.a3 = frame[3], .a4 = frame[4], .a5 = frame[5],
+		};
+		frame[0] = (u64)rk_syscall_dispatch(&a);
 		return;
 	}
 
-	panic("unhandled exception: esr %#llx (class %#x) far %#llx elr %#llx",
+	panic("unhandled exception: esr %#llx (class %#x) far %#llx elr %#llx "
+	      "spsr %#llx",
 	      (unsigned long long)esr, ec, (unsigned long long)far,
-	      (unsigned long long)elr);
+	      (unsigned long long)elr, (unsigned long long)frame[23]);
 }
 
 void aarch64_serror(u64 esr)
@@ -434,12 +445,29 @@ static u64 prot_to_pte(u32 prot, bool device)
 
 	e |= device ? PTE_ATTR(MAIR_DEVICE) : PTE_ATTR(MAIR_NORMAL);
 	e |= (prot & RK_PROT_WRITE) ? PTE_AP_RW : PTE_AP_RO;
-	if (prot & RK_PROT_USER)
-		e |= PTE_AP_USER | PTE_NG;
-	if (!(prot & RK_PROT_EXEC))
-		e |= PTE_PXN;
-	/* Kernel mappings are never executable from EL0. */
-	e |= PTE_UXN;
+
+	/* The two execute-never bits are not symmetric and must not be set
+	 * together by accident.
+	 *
+	 * UXN forbids execution at EL0, PXN forbids it at EL1. A kernel page
+	 * wants UXN always - EL0 has no business executing it - and PXN only when
+	 * it is not code. A user page wants the mirror image: PXN always, because
+	 * the kernel executing user memory is precisely what SMEP prevents on
+	 * x86 and the same argument applies here, and UXN only when the segment
+	 * is not executable.
+	 *
+	 * Setting UXN unconditionally, as this did, makes every user page
+	 * non-executable - so a program loads, is entered, and takes an
+	 * instruction abort on its first instruction, forever. */
+	if (prot & RK_PROT_USER) {
+		e |= PTE_AP_USER | PTE_NG | PTE_PXN;
+		if (!(prot & RK_PROT_EXEC))
+			e |= PTE_UXN;
+	} else {
+		e |= PTE_UXN;
+		if (!(prot & RK_PROT_EXEC))
+			e |= PTE_PXN;
+	}
 	return e;
 }
 
@@ -504,7 +532,27 @@ pgtable_t arch_pgtable_create(void)
 	paddr_t pa = pmm_alloc_page();
 	if (!pa)
 		return NULL;
-	memset((void *)(uintptr_t)pa, 0, RK_PAGE_SIZE);
+
+	u64 *l1 = (u64 *)(uintptr_t)pa;
+	memset(l1, 0, RK_PAGE_SIZE);
+
+	/* Every address space carries the kernel's mappings.
+	 *
+	 * This port translates through TTBR0 only, so a table without them would
+	 * unmap the kernel the instant it was installed - the very next
+	 * instruction fetch would fault, inside a fault handler that is also no
+	 * longer mapped. On x86_64 the equivalent is copying the top half of the
+	 * PML4; here it is the bottom eight gigabytes, which is why user programs
+	 * are placed above that rather than at the traditional low address.
+	 *
+	 * The entries are block descriptors covering RAM and the device region,
+	 * so nothing below is shared by pointer and a user table can be freed
+	 * without touching kernel structures. */
+	if (kernel_l1)
+		for (size_t i = 0; i < 8; i++)
+			l1[i] = kernel_l1[i];
+
+	__asm__ __volatile__("dsb ishst" ::: "memory");
 	return (pgtable_t)(uintptr_t)pa;
 }
 
@@ -552,6 +600,15 @@ int arch_map(pgtable_t pt, vaddr_t va, paddr_t pa, size_t len, u32 prot)
 		int r = map_one(l1, va + off, pa + off, flags);
 		if (r != RK_OK)
 			return r;
+		/* Installing a translation is not enough: the old one has to be
+		 * thrown away. ARM permits an implementation to hold a cached entry
+		 * for an address even when the table said it was invalid, and it
+		 * certainly holds one when this address was mapped before. Without
+		 * this, a freshly mapped page keeps resolving through whatever the
+		 * TLB remembers - writes land somewhere else and reads come back
+		 * zero, intermittently, depending on what evicted the entry. Unmap
+		 * and protect already did this; map did not. */
+		arch_tlb_flush_page(va + off);
 	}
 	__asm__ __volatile__("dsb ishst; isb" ::: "memory");
 	return RK_OK;
@@ -884,19 +941,52 @@ void arch_fpu_restore(struct thread *t)
 		:: "r"(s) : "memory");
 }
 
-int arch_enter_user(vaddr_t entry, vaddr_t stack, void *arg)
+/* Clean the data cache to the point of unification and invalidate the
+ * instruction cache over the same range.
+ *
+ * The line sizes come from CTR_EL0 rather than being assumed: they differ
+ * between implementations, and a loop that steps by the wrong stride either
+ * misses lines or wastes a great deal of time. Both fields are log2 of a count
+ * of words, hence the shift by two. */
+void arch_sync_icache(vaddr_t va, size_t len)
 {
-	(void)entry; (void)stack; (void)arg;
-	return RK_ENOSYS;
+	if (!len)
+		return;
+
+	u64 ctr = SYSREG_READ(ctr_el0);
+	size_t dline = (size_t)4 << ((ctr >> 16) & 0xF);
+	size_t iline = (size_t)4 << (ctr & 0xF);
+	vaddr_t end = va + len;
+
+	for (vaddr_t p = ALIGN_DOWN(va, dline); p < end; p += dline)
+		__asm__ __volatile__("dc cvau, %0" :: "r"(p) : "memory");
+	__asm__ __volatile__("dsb ish" ::: "memory");
+
+	for (vaddr_t p = ALIGN_DOWN(va, iline); p < end; p += iline)
+		__asm__ __volatile__("ic ivau, %0" :: "r"(p) : "memory");
+	__asm__ __volatile__("dsb ish\n\tisb" ::: "memory");
 }
 
-s64 aarch64_syscall(void);
-
-s64 aarch64_syscall(void)
+int arch_enter_user(vaddr_t entry, vaddr_t stack, void *arg)
 {
-	/* The SVC path needs the saved register frame to read arguments from; it
-	 * lands here once the trap frame layout is wired up. */
-	return RK_ENOSYS;
+	struct thread *t = arch_current_thread();
+	(void)t;
+
+	/* SP_EL0 is the user stack; the kernel keeps running on SP_EL1, so a trap
+	 * back into EL1 lands on the kernel stack without any switching here. */
+	SYSREG_WRITE(sp_el0, (u64)stack);
+	SYSREG_WRITE(elr_el1, (u64)entry);
+
+	/* SPSR: M[3:0] = 0 selects EL0t, and DAIF clear means the program runs
+	 * with interrupts enabled - without which it could never be preempted. */
+	SYSREG_WRITE(spsr_el1, 0);
+
+	__asm__ __volatile__(
+		"mov x0, %0\n\t"
+		"eret"
+		:: "r"((u64)(uintptr_t)arg) : "x0", "memory");
+
+	return RK_OK;   /* not reached */
 }
 
 /* -------------------------------------------------------------- SMP */

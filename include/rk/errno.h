@@ -38,5 +38,6 @@
 #define RK_EPIPE       -30   /* broken channel */
 #define RK_ECANCELED   -31   /* canceled */
 #define RK_EDEADLK     -32   /* deadlock would occur */
+#define RK_ENOEXEC     -33   /* not a loadable program image */
 
 const char *rk_strerror(int err);

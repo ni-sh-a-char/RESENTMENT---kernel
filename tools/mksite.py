@@ -31,6 +31,7 @@ OUT = os.path.join(ROOT, "site")
 PAGES = [
     ("docs/ARCHITECTURE.md", "architecture.html", "Architecture",      "Design"),
     ("docs/SMP.md",          "smp.html",          "Multiprocessing",   "Design"),
+    ("docs/USERSPACE.md",    "userspace.html",    "Ring 3",            "Design"),
     ("docs/KAALKA.md",       "kaalka.html",       "Kaalka",            "Design"),
     ("docs/GRAPH.md",        "graph.html",        "The runtime graph", "Design"),
     ("docs/AI.md",           "ai.html",           "The AI subsystem",  "Design"),

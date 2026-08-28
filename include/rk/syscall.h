@@ -11,6 +11,13 @@
  *   x86_64   syscall, number in rax, args in rdi rsi rdx r10 r8 r9, ret rax
  *   aarch64  svc #0,   number in x8,  args in x0..x5,               ret x0
  *   riscv64  ecall,    number in a7,  args in a0..a5,               ret a0
+ *
+ * The kernel preserves every register except the return register and whatever
+ * the trap instruction itself destroys - rcx and r11 on x86_64, nothing on the
+ * other two. A caller may therefore keep live values in the argument registers
+ * across a call, which ordinary compiled code does constantly. This is not a
+ * courtesy: a kernel that clobbers them corrupts its caller in a way that
+ * varies with optimisation level and is nearly impossible to attribute.
  */
 #pragma once
 

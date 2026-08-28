@@ -18,6 +18,7 @@
 #include <rk/log.h>
 #include <rk/errno.h>
 #include <rk/vfs.h>
+#include <rk/elf.h>
 #include <rk/sched.h>
 #include <rk/graph.h>
 #include <rk/time.h>
@@ -242,6 +243,33 @@ static bool dot_command(struct she_vm *vm, const char *line)
 				if (rc != RK_OK && vm->error[0])
 					rk_printf("%s\n", vm->error);
 				kfree(src);
+			}
+		}
+	} else if (strcmp(verb, "exec") == 0) {
+		/* .run evaluates a SHE script inside the kernel. .exec is the other
+		 * thing entirely: it loads an ELF, builds an address space for it and
+		 * drops to ring 3. The two are deliberately separate verbs because
+		 * they differ in privilege, not in convenience. */
+		if (!RK_HAVE_USERSPACE) {
+			rk_printf("this architecture has no userspace yet; "
+			          "see docs/USERSPACE.md\n");
+		} else if (!arg || !*arg) {
+			rk_printf("usage: .exec <path to an ELF>\n");
+		} else {
+			struct task *child = NULL;
+			const char *argv[1] = { arg };
+			int rc = rk_exec_spawn(arg, 1, argv, &child);
+			if (rc != RK_OK) {
+				rk_printf("cannot execute %s: %s\n", arg, rk_strerror(rc));
+			} else {
+				/* Wait for it, so the prompt does not come back on top of
+				 * the program's own output. */
+				for (int spin = 0; spin < 2000 && !child->exited; spin++)
+					sched_sleep_ms(1);
+				if (child->exited)
+					rk_printf("[%s exited with %d]\n", arg, child->exit_code);
+				else
+					rk_printf("[%s is still running]\n", arg);
 			}
 		}
 	} else if (strcmp(verb, "history") == 0) {

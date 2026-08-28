@@ -163,4 +163,43 @@ int copy_from_user(void *dst, const void *usrc, size_t n) __must_check;
 int copy_to_user(void *udst, const void *src, size_t n) __must_check;
 int strncpy_from_user(char *dst, const char *usrc, size_t n) __must_check;
 
+/* Where user programs live, and why it differs per architecture.
+ *
+ * x86_64 puts the kernel in the top half of a 48-bit space, so the entire
+ * lower canonical half belongs to userspace and the layout is the familiar
+ * one.
+ *
+ * aarch64 here is identity mapped through TTBR0 with no higher half, so the
+ * kernel occupies the bottom eight gigabytes of *every* address space -
+ * including a user one, which must contain the kernel's mappings or a system
+ * call would unmap the code servicing it. User programs therefore start above
+ * that, and the 39-bit space leaves 504 GiB of room there. Moving the kernel
+ * to TTBR1 would free the bottom of the space and is the right long-term
+ * shape; it is a larger change than it looks, because every kernel pointer in
+ * the port is currently a physical address.
+ *
+ * riscv64 runs with address translation switched off altogether. There is no
+ * userspace to place until it has an MMU, and the constants below say so by
+ * describing an empty range rather than by pretending. */
+#if defined(RK_ARCH_X86_64)
+#  define RK_USER_VA_MIN    0x0000000000400000ull
+#  define RK_USER_VA_MAX    0x00007FFFFFFFF000ull
+#  define RK_USER_STACK_TOP 0x0000700000000000ull
+#  define RK_HAVE_USERSPACE 1
+#elif defined(RK_ARCH_AARCH64)
+#  define RK_USER_VA_MIN    0x0000000200000000ull
+#  define RK_USER_VA_MAX    0x0000007FFFFFF000ull
+#  define RK_USER_STACK_TOP 0x0000007F00000000ull
+   /* The address space plumbing is in place and the entry and system call
+    * paths work, but a freshly mapped user page does not yet reliably hold
+    * what the loader writes into it, so this is off rather than flaky. See
+    * docs/USERSPACE.md for exactly what is left. */
+#  define RK_HAVE_USERSPACE 0
+#else
+#  define RK_USER_VA_MIN    0x0000000000400000ull
+#  define RK_USER_VA_MAX    0x0000000000400000ull
+#  define RK_USER_STACK_TOP 0x0000000000400000ull
+#  define RK_HAVE_USERSPACE 0
+#endif
+
 void mm_init(struct boot_info *bi);

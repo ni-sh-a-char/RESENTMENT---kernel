@@ -58,6 +58,13 @@ TARGETS = {
 # The same images on four cores. Everything the single-core run checks has to
 # still hold, plus the cores actually have to come up: a kernel that boots on
 # one core and wedges on four is a kernel that works on nobody's laptop.
+# The one check that cannot be shared: loading an ELF, dropping to ring 3 and
+# coming back through a system call. Only x86_64 has userspace so far.
+USERSPACE_CHECKS = [
+    (".exec /boot/bin/init", "hello from ring 3", True),
+]
+TARGETS["x86_64"]["checks"] = USERSPACE_CHECKS
+
 for _arch, _extra in (("x86_64", ["ACPI reports 4 usable processors"]),
                       ("aarch64", []),
                       ("riscv64", [])):
@@ -251,8 +258,12 @@ def run_one(arch, qemu_override, timeout, port):
         # every architecture whether or not the loader passed a module. A check
         # that needs it is therefore never skipped - if /boot is missing, that
         # is a failure and should read as one.
+        # Ring 3 exists on x86_64 only for now, so the check that proves it is
+        # attached to those targets rather than asserted everywhere.
+        checks = CHECKS + spec.get("checks", [])
+
         ran = 0
-        for command, expect, _needs_initrd in CHECKS:
+        for command, expect, _needs_initrd in checks:
             ran += 1
             mark = s.mark()
             s.send(command)

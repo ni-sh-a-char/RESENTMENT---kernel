@@ -237,7 +237,7 @@ Honest, because a status table that overstates is worse than none.
 | AI: tensors, ops, accel HAL, KV cache, model registry | **working**, GGUF parsed |
 | Console: VGA, framebuffer, serial, PS/2 | **working** |
 | Syscall entry (SYSCALL/SYSRET, int 0x80) | **working** |
-| Ring-3 userspace | entry path exists; no ELF loader yet — see [ROADMAP](ROADMAP.md) |
+| Ring-3 userspace | **working on x86_64** — ELF64 loader, address spaces, syscalls from user mode; not yet on the other two, see [USERSPACE](docs/USERSPACE.md) |
 | PCI, block, network drivers | device model only — see [ROADMAP](ROADMAP.md) |
 
 ### Verification
@@ -253,21 +253,22 @@ Honest, because a status table that overstates is worse than none.
 
 `make qemu-test-all` is the one that matters before a release. It builds every
 architecture, boots each twice — once single-core, once with `-smp 4` — and
-drives 28 assertions through the shell over a serial socket each time. The last
-two run the attestation demo end to end, which is the scenario the whole design
+drives 28 assertions through the shell over a serial socket each time - 29 on
+x86_64, which additionally loads a program into ring 3. The last few run the
+attestation demo end to end, which is the scenario the whole design
 exists for: seal a snapshot, read the clock angles Kaalka is keying from, prove
 the digest holds across pure computation, then change the machine and watch its
 name change with it.
 
 ```
 === x86_64 ==================================================
-  x86_64: all 28 checks passed
+  x86_64: all 29 checks passed
 === aarch64 =================================================
   aarch64: all 28 checks passed
 === riscv64 =================================================
   riscv64: all 28 checks passed
 === x86_64-smp ==============================================
-  x86_64-smp: all 28 checks passed
+  x86_64-smp: all 29 checks passed
 === aarch64-smp =============================================
   aarch64-smp: all 28 checks passed
 === riscv64-smp =============================================
@@ -323,6 +324,7 @@ stub. Nothing above `arch/` includes an architecture header.
 - [The AI subsystem](docs/AI.md) — tensors, scheduling, paged attention
 - [Porting](docs/PORTING.md) — what a new architecture has to provide
 - [SMP](docs/SMP.md) — how each architecture starts its other cores
+- [Ring 3](docs/USERSPACE.md) — the ELF loader, and what a process may do
 - [Contributing](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Security](SECURITY.md) · [Governance](GOVERNANCE.md)
 
 The full documentation site, including everything above rendered for reading

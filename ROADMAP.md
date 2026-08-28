@@ -29,16 +29,24 @@ Dates are absent on purpose. This is a roadmap of order, not of schedule.
 
 ## Next
 
-### 1. Ring-3 userspace
+### 1. Ring-3 userspace on the other two architectures
 
-The entry path (`arch_enter_user`) and the syscall entry (`SYSCALL`/`SYSRET`,
-`SVC`, `ecall`) exist. What is missing is the loader.
+**Done on x86_64**: the ELF64 loader, per-process address spaces, the initial
+stack, the privilege transition and the system call return path all work and
+are checked by the suite on every run. See [docs/USERSPACE.md](docs/USERSPACE.md).
 
-- ELF64 loader: `PT_LOAD` mapping, `PT_GNU_STACK`, relocation for `ET_DYN`
-- A process is a task plus an address space plus a capability space — all three
-  already exist, so this is wiring rather than design
-- The initial capability set handed to a new process, and how a parent narrows
-  it. This is the interesting part and should not be rushed to match POSIX.
+What is left, in the order it should be done:
+
+- **riscv64 Sv39 paging.** A prerequisite, and worth doing on its own merits:
+  without it copy-on-write and demand paging do not function on RISC-V either.
+- **aarch64 TTBR1.** Move the kernel out of TTBR0 and stop identity mapping the
+  port, which is the shape the hardware is designed around. It also removes the
+  reason user programs are currently linked at 8 GiB there.
+- **`SYS_TASK_SPAWN`**, so a process can start another one rather than only the
+  kernel and the shell being able to.
+- **The initial capability set** handed to a new process, and how a parent
+  narrows it. This is the interesting part and should not be rushed to match
+  POSIX.
 
 ### 2. Storage and the network
 

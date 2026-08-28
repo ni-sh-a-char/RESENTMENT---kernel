@@ -476,6 +476,17 @@ size_t arch_fpu_state_size(void) { return 32 * 8 + 8; }
 void arch_fpu_save(struct thread *t) { (void)t; }
 void arch_fpu_restore(struct thread *t) { (void)t; }
 
+/* RISC-V has one instruction for this and it applies to the whole hart, so the
+ * range is ignored. On a multiprocessor the other harts need one too before
+ * they execute the new code; nothing here writes code that another hart runs,
+ * so that is not yet arranged. */
+void arch_sync_icache(vaddr_t va, size_t len)
+{
+	(void)va;
+	(void)len;
+	__asm__ __volatile__("fence.i" ::: "memory");
+}
+
 int arch_enter_user(vaddr_t entry, vaddr_t stack, void *arg)
 { (void)entry; (void)stack; (void)arg; return RK_ENOSYS; }
 

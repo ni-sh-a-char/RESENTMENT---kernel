@@ -74,6 +74,22 @@ All three boot to an interactive shell and pass the same test suite.
 - **riscv64** — SBI timer, reset, IPI and hart state management; PLIC, NS16550,
   supervisor traps, and no assumption that the firmware chose hart zero.
 
+### Ring 3
+
+- **An ELF64 loader**, validating every field an untrusted file controls before
+  anything is mapped: offsets that wrap, a file size larger than the memory
+  size, addresses outside the user range. All of it in a first pass, so a bad
+  segment cannot leave a half-built address space behind.
+- **Per-process address spaces**, an initial stack carrying argc and argv in
+  the System V prefix layout, and the privilege transition into ring 3.
+- **`arch_sync_icache`**, because the loader writes code through a data mapping
+  and only x86 keeps its caches coherent in hardware.
+- A userspace that links against nothing: `user/src/init.c` plus three inline
+  assembly stubs, running with an empty capability space.
+- Working on x86_64 and checked by the suite on every run. Not yet on aarch64
+  or riscv64, and `docs/USERSPACE.md` says precisely why rather than implying
+  it is coming.
+
 ### Every architecture, not just x86
 
 - **A wall clock everywhere.** `arch_wallclock_unix` returned zero on ARM64

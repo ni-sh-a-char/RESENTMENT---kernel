@@ -208,6 +208,7 @@ enum graph_event_kind {
 	GEV_IPC,
 	GEV_INFERENCE,
 	GEV_LOG,
+	GEV_EXEC,        /* a program image was loaded and entered ring 3 */
 	GEV_KIND_COUNT
 };
 

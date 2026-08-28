@@ -23,8 +23,9 @@
 #undef RK_SUBSYS
 #define RK_SUBSYS "vmm"
 
-#define USER_MIN      0x0000000000400000ull
-#define USER_MAX      0x00007FFFFFFFF000ull
+/* Per architecture; see the note beside them in <rk/mm.h>. */
+#define USER_MIN      RK_USER_VA_MIN
+#define USER_MAX      RK_USER_VA_MAX
 #define USER_MMAP_BASE 0x0000200000000000ull
 
 static struct address_space kernel_as;

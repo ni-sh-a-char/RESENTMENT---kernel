@@ -36,6 +36,7 @@ static const char *const names[] = {
 	"broken channel",
 	"canceled",
 	"deadlock would occur",
+	"not a loadable program image",
 };
 
 const char *rk_strerror(int err)

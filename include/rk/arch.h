@@ -143,6 +143,15 @@ void rk_fpu_end(void);
 struct arch_uctx;
 int  arch_enter_user(vaddr_t entry, vaddr_t stack, void *arg) __must_check;
 
+/* Make instructions written as data visible to the instruction fetcher.
+ *
+ * Required after anything that produces code at run time - loading a program
+ * image above all. x86 keeps its caches coherent in hardware and this is a
+ * no-op there; ARM and RISC-V do not, and skipping it produces a fault on the
+ * first instruction of a program that was written correctly, which is a very
+ * long way from the cause. */
+void arch_sync_icache(vaddr_t va, size_t len);
+
 /* ------------------------------------------------------------------- random */
 
 /* Hardware entropy if the CPU has it. Returns bytes actually produced. */

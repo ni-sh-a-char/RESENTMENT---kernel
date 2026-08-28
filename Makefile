@@ -168,10 +168,67 @@ DEPFLAGS = -MMD -MP -MF $(@:.o=.d) -MT $@
 LINKER_SCRIPT := arch/$(ARCH)/linker.ld
 KERNEL_ELF    := $(DIST)/resentment.elf
 
+# ------------------------------------------------------------------- user
+
+# Programs that run in ring 3. They are built with the same compiler as the
+# kernel and linked against nothing at all: user/src/rksys.h is the whole of
+# their dependency on the system, and it is three inline assembly stubs.
+#
+# Flags differ from the kernel's in exactly one way that matters: no
+# -mcmodel=kernel and no -mno-red-zone, because a user program is neither in
+# the top two gigabytes nor forbidden the red zone.
+USER_SRCS := $(wildcard user/src/*.c)
+USER_ELF  := $(BUILD)/user/init
+USER_LD   := $(BUILD)/user/user.ld
+
+USER_CFLAGS := -std=gnu11 -ffreestanding -nostdlib -fno-builtin \
+               -fno-stack-protector -fno-common -fno-pic -fno-pie \
+               -Os -Wall -Wextra -Wno-unused-parameter $(EXTRA_CFLAGS)
+
+# Where the program is linked. x86_64 uses the traditional low address; aarch64
+# must sit above the kernel's identity map, which occupies the bottom eight
+# gigabytes of every address space on this port. See RK_USER_VA_MIN.
+USER_BASE := 0x400000
+ifeq ($(ARCH),riscv64)
+  ifneq ($(TOOLCHAIN),zig)
+    USER_CFLAGS += -march=rv64imac_zicsr_zifencei -mabi=lp64
+  endif
+  USER_CFLAGS += -mcmodel=medany
+endif
+ifeq ($(ARCH),aarch64)
+  USER_BASE := 0x200000000
+  USER_CFLAGS += -mcmodel=large
+  ifneq ($(TOOLCHAIN),zig)
+    USER_CFLAGS += -mno-outline-atomics
+  endif
+endif
+
+# The base address is substituted into the script rather than passed with
+# --defsym: a symbol defined on the linker command line is not visible to the
+# script's own DEFINED() test, so the load address silently stays at its
+# default and the kernel then rejects the image for being outside the user
+# range - which reads as a broken loader rather than a broken link.
+$(USER_LD): user/src/user.ld.in
+	@mkdir -p $(dir $@)
+	$(Q)sed 's/@USER_BASE@/$(USER_BASE)/' $< > $@
+
+$(USER_ELF): $(USER_SRCS) $(USER_LD) user/src/rksys.h
+	@mkdir -p $(dir $@)
+	@echo "  CC/user $(USER_SRCS)"
+	$(Q)$(CC) $(USER_CFLAGS) -Wl,-T,$(USER_LD) -Wl,--build-id=none \
+	    -o $@ $(USER_SRCS)
+	@echo "  USER    $@ ($$(wc -c < $@) bytes)" 
+
 # ------------------------------------------------------------------ targets
 
 .PHONY: all kernel iso run run-iso run-script debug test verify check clean qemu-test-all site site-serve \
         distclean help info all-arch initrd toolchain qemu-test kaalka-check
+
+# Named explicitly rather than left to "whichever target appears first",
+# because that is a property of file order and quietly changes when a rule is
+# added above this line - which presents as a build that succeeds and produces
+# nothing.
+.DEFAULT_GOAL := all
 
 all: kernel
 
@@ -239,10 +296,18 @@ $(GEN_INITRD_O): $(GEN_INITRD_C)
 	@echo "  CC      $<"
 	$(Q)$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
-$(DIST)/initrd.tar: $(shell find user -type f 2>/dev/null)
+# The ramdisk is staged rather than packed straight out of user/, because it
+# now carries a compiled program as well as scripts, and that program is
+# architecture specific. user/src is the source of it and does not belong in
+# the image.
+$(DIST)/initrd.tar: $(shell find user -type f 2>/dev/null) $(USER_ELF)
 	@mkdir -p $(dir $@)
+	@rm -rf $(BUILD)/initrd-root
+	@mkdir -p $(BUILD)/initrd-root/bin
+	$(Q)cp -r user/bin user/etc $(BUILD)/initrd-root/
+	$(Q)cp $(USER_ELF) $(BUILD)/initrd-root/bin/init
 	@echo "  INITRD  $@"
-	$(Q)sh tools/mkinitrd.sh user $@
+	$(Q)sh tools/mkinitrd.sh $(BUILD)/initrd-root $@
 
 # ------------------------------------------------------------ direct boot
 

@@ -67,7 +67,7 @@ static const char *const edge_kind_name[GEDGE_KIND_COUNT] = {
 static const char *const event_kind_name[GEV_KIND_COUNT] = {
 	"node_create", "node_update", "node_destroy", "edge_add", "edge_del",
 	"syscall", "sched_switch", "irq", "fault", "cap_check", "ipc",
-	"inference", "log"
+	"inference", "log", "exec"
 };
 
 const char *graph_node_kind_name(enum graph_node_kind k)

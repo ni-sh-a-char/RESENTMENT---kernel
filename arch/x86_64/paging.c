@@ -455,3 +455,12 @@ void x86_paging_harden(void)
 	pr_info("kernel image hardened: %pB text r-x, %pB rodata r--",
 	        RK_BYTES(text_len), RK_BYTES(rodata_len));
 }
+
+/* x86 keeps the instruction and data caches coherent in hardware: self
+ * modifying code needs at most a serialising instruction, and the ring
+ * transition that follows a program load is one. Nothing to do. */
+void arch_sync_icache(vaddr_t va, size_t len)
+{
+	(void)va;
+	(void)len;
+}

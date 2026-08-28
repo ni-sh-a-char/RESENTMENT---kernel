@@ -44,7 +44,22 @@ x86_syscall_entry:
 
 	call x86_syscall_handler
 
-	add rsp, 7 * 8                ; drop the argument block
+	; Restore the argument registers rather than discarding them. SYSCALL
+	; itself only destroys rcx and r11, so that is all a caller is required to
+	; treat as clobbered - it is free to keep a live value in rdi or rsi
+	; across the call, and a great deal of ordinary code does. Dropping the
+	; block with `add rsp, 7*8` left those registers holding whatever the
+	; handler happened to leave there, which corrupts the caller in a way that
+	; depends on optimisation level and is therefore very hard to attribute.
+	;
+	; rax is skipped: the handler's return value is already in it.
+	add rsp, 8
+	pop rdi
+	pop rsi
+	pop rdx
+	pop r10
+	pop r8
+	pop r9
 
 	pop r15
 	pop r14
