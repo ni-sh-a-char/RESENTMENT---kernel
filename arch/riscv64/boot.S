@@ -11,6 +11,22 @@
 .global _start
 
 _start:
+	/* gp comes first, and nothing may be put in front of it.
+	 *
+	 * A RISC-V linker relaxes `la rd, sym` into `addi rd, gp, offset` for any
+	 * symbol near __global_pointer$, so an instruction that mentions a symbol
+	 * before gp holds a sane value computes an address from garbage. GNU ld
+	 * does this relaxation and lld does not, which makes the bug invisible
+	 * under half the toolchains that build this tree - it presents as a kernel
+	 * that produces no output whatsoever.
+	 *
+	 * The norelax pragma around the load of gp itself is the same problem one
+	 * step further in: relaxing that would make it depend on its own result. */
+.option push
+.option norelax
+	la      gp, __global_pointer$
+.option pop
+
 	/* Which hart runs the kernel is the firmware's choice, not ours: OpenSBI
 	 * picks one and it is regularly not hart zero. So the first hart to
 	 * arrive claims the boot role and the rest park - on a system whose
@@ -24,14 +40,6 @@ _start:
 	 * is already running on. */
 	la      t0, boot_hart_id
 	sd      a0, 0(t0)
-
-	/* Point gp at the small-data area so gp-relative accesses work. The
-	 * norelax pragma is required: without it the linker rewrites this
-	 * sequence to be gp-relative, which is circular. */
-.option push
-.option norelax
-	la      gp, __global_pointer$
-.option pop
 
 	la      sp, kernel_boot_stack_top
 
