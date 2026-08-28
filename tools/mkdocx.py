@@ -171,8 +171,11 @@ Three things a normal kernel can't say:
 
 • Inference is a scheduling class, not a userspace afterthought.
 
-Boots on x86_64, ARM64 and RISC-V. SMP on all three.
-1440 host assertions + 168 driven through its own shell under QEMU.
+Boots on x86_64, ARM64 and RISC-V. SMP on all three. Loads a GGUF model and
+runs a real transformer forward pass through its own operators, on a thread the
+deadline admission controller accepted.
+
+1440 host assertions + 176 driven through its own shell under QEMU.
 Zero dependencies.
 
 github.com/ni-sh-a-char/RESENTMENT---kernel"""
@@ -235,7 +238,21 @@ X_THREAD = """1/  Two years ago this repo printed one line of text at boot. That
 
     It was much worse than weak.
 
-9/  And a RISC-V one that only appears under GNU ld:
+9/  My actual favourite, found while making inference work:
+
+    sched_tick() was never called on ARM64. At all. Since the port was
+    written.
+
+    It was driven by a hardcoded test for interrupt line zero — the x86
+    timer and nothing else's. ARM's timer is a PPI on line 27.
+
+    So that port had no preemption, no slice accounting, and
+    sched_sleep_ms never returned, because nothing ever woke a sleeper.
+
+    Nothing in the test suite slept. It went unnoticed for the life of
+    the port.
+
+10/ And a RISC-V one that only appears under GNU ld:
 
     `la t0, sym` gets relaxed into `addi t0, gp, offset`. I'd put code
     before gp was initialised. Every hart computed a garbage address and
@@ -243,18 +260,32 @@ X_THREAD = """1/  Two years ago this repo printed one line of text at boot. That
 
     Invisible under LLD. Fatal on real hardware.
 
-10/ What I'm NOT claiming:
+11/ The kernel now runs a transformer.
 
-    Ring 3 works on x86_64 only. ARM64 and RISC-V need MMU work first, and
-    docs/USERSPACE.md says exactly what's left rather than implying it's
-    nearly done.
+    Not a wrapper around one — the forward pass itself, built from the
+    kernel's own operators. Embed, RMSNorm, QKV, RoPE, attention over the
+    KV history, gated FFN, logits, argmax.
 
-    No PCI, no network stack yet.
+      resentment> .infer 24
+        generated  24 tokens in 130 ms
+        class      SCHED_INFERENCE, 50 Hz declared, admitted
+        deadline miss  0
 
-11/ Everything is verifiable:
+    "admitted" is the deadline admission controller accepting the rate.
+    Ask for more than the class has left and it refuses.
+
+12/ What I'm NOT claiming:
+
+    The model has pseudo-random weights. The tokens mean nothing. The
+    claim is that the *path* exists and is scheduled correctly — a
+    systems claim, which is the only kind a kernel gets to make.
+
+    Ring 3 works on x86_64 only. No PCI, no network stack yet.
+
+13/ Everything is verifiable:
 
     make test           1440 assertions on the host
-    make qemu-test-all  6 targets, 168 assertions through the shell
+    make qemu-test-all  6 targets, 176 assertions through the shell
     make kaalka-check   crypto byte-identical to the reference
 
     Apache 2.0. No dependencies. One command builds all three arches.
@@ -267,7 +298,7 @@ Last night I tagged v2.0.0, and it's a different thing entirely.
 
 RESENTMENT is a capability-secure, AI-native kernel. It boots on x86_64, ARM64
 and RISC-V, uses every core on the machine, and is verified by 1,440 assertions
-on the host plus 168 driven through its own shell under QEMU on six targets.
+on the host plus 176 driven through its own shell under QEMU on six targets.
 
 Three design decisions it's built around:
 
@@ -289,14 +320,27 @@ interactive nor batch — it's a soft real-time stream with a rate the user can
 see. SCHED_INFERENCE treats it as one: admitted with a declared rate, given a
 per-period budget, demoted rather than dropped when it overruns.
 
+It also runs a transformer - not a wrapper around one, but the forward pass
+itself, assembled from the kernel's own operators and scheduled by the class
+above. The fixture model it runs has pseudo-random weights and produces
+meaningless tokens, deliberately: the claim is that the path exists and is
+admitted, budgeted and yielded correctly, which is a systems claim and the only
+kind a kernel is entitled to make.
+
 What I found more valuable than any feature was what building it surfaced. The
 scheduler was returning a thread to the run queue before its stack pointer had
 been saved — two cores could run one stack. The x86_64 system call entry was
 destroying the argument registers a caller is entitled to keep live. The
 CSPRNG was running on an all-zero key, because entropy only reached the key
 once an estimate crossed a threshold that a machine without a hardware RNG
-never reaches. Each of those passed review, passed tests, and was found only by
-a second toolchain or a four-core workload.
+never reaches. And on ARM64 the scheduler tick was never called at all - it was
+driven by a hardcoded test for interrupt line zero, which is the x86 timer and
+nothing else's - so that port had no preemption and no way to wake a sleeping
+thread, for its entire life, unnoticed because nothing in the suite slept.
+
+Each of those passed review, passed tests, and was found only by a second
+toolchain, a four-core workload, or by building something that finally
+exercised the path.
 
 I'm equally clear about what isn't done. Ring 3 works on x86_64 and not yet on
 the other two; there's no PCI enumeration and no network stack. The roadmap
@@ -337,6 +381,22 @@ built around three properties a conventional kernel can't really express:
    batch is wrong too. `SCHED_INFERENCE` admits it with a declared rate, gives
    it a per-period budget, and demotes rather than drops it on overrun.
 
+**It runs a transformer**
+
+Not a wrapper around one - the forward pass itself, through the kernel's own
+operators: embed, RMSNorm, QKV projections, RoPE, attention over the KV
+history, gated FFN, logits, argmax. On a thread the deadline admission
+controller accepted.
+
+    resentment> .infer 24
+      generated      24 tokens in 130 ms
+      rate           193 tokens/sec
+      class          SCHED_INFERENCE, 50 Hz declared, 5000 us budget, admitted
+      deadline miss  0
+
+The fixture model has pseudo-random weights and the tokens are meaningless by
+construction. The claim is about the path, not the output.
+
 **Status, honestly**
 
 Boots to an interactive shell on all three architectures. SMP on all three
@@ -367,6 +427,11 @@ Plus seven self-tests on every boot, on the machine about to be trusted.
 - On RISC-V, GNU ld relaxes `la rd, sym` to `addi rd, gp, off`. I had code
   before `gp` was set. Every hart computed garbage and parked. Invisible under
   LLD, fatal on hardware.
+- **`sched_tick()` was never called on ARM64.** It was driven by a hardcoded
+  test for interrupt line zero, which is the x86 timer and nothing else's.
+  ARM's is a PPI on line 27. That port had no preemption, no slice accounting,
+  and `sched_sleep_ms` never returned. Nothing in the suite slept, so it went
+  unnoticed for the life of the port.
 
 Apache 2.0. No dependencies — `make toolchain` fetches a portable zig+nasm and
 builds all three architectures, or it uses your system compiler if you have
@@ -413,7 +478,7 @@ SHORT_BLURB = """RESENTMENT 2.0.0 — a capability-secure, AI-native kernel.
 Authority expires by construction. The whole machine has one SHA-256 root
 digest. Inference is a scheduling class.
 
-x86_64 + ARM64 + RISC-V, SMP on all three, 1440 + 168 tests, zero dependencies.
+x86_64 + ARM64 + RISC-V, SMP on all three, 1440 + 176 tests, zero dependencies.
 
 github.com/ni-sh-a-char/RESENTMENT---kernel"""
 
@@ -476,7 +541,7 @@ def build():
         ("Documentation", DOCS),
         ("Licence",       "Apache 2.0"),
         ("Architectures", "x86_64, aarch64, riscv64 — all boot, all SMP"),
-        ("Verification",  "1440 host assertions + 168 through the shell under "
+        ("Verification",  "1440 host assertions + 176 through the shell under "
                           "QEMU across 6 targets"),
         ("Dependencies",  "none — builds from its own sources plus a compiler"),
         ("Tags",          "v1.0.0 (the original hobby kernel) and v2.0.0 (this)"),
@@ -642,11 +707,12 @@ def build():
         ("SMP",                "all three; tested on 4 and 8 cores"),
         ("Wall clock",         "all three — CMOS, PL031, goldfish"),
         ("Ring 3 userspace",   "x86_64 (ELF64 loader, address spaces, syscalls)"),
+        ("Inference",          "all three - a real transformer forward pass, admitted by deadline admission control"),
         ("Scheduling classes", "4 — realtime, inference, interactive, batch"),
         ("Capability types",   "24, each sealed and time-bounded"),
         ("SHE builtins",       "29, behind 11 permission grants"),
         ("Host assertions",    "1440 (make test)"),
-        ("QEMU assertions",    "168 across 6 targets (make qemu-test-all)"),
+        ("QEMU assertions",    "176 across 6 targets (make qemu-test-all)"),
         ("Boot self-tests",    "7, on every boot"),
         ("Kaalka cross-check", "100% byte-identical to the reference"),
         ("Dependencies",       "zero"),
