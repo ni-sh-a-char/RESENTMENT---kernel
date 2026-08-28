@@ -15,7 +15,10 @@ of what matters is enforced by `make check` rather than by review.
 | `develop` | Integration. Work lands here first when it is large enough to want a soak before it reaches `main`. |
 
 Send pull requests against `main` unless a maintainer asks otherwise. The
-version branches are snapshots, not development lines.
+version branches are snapshots, not development lines: `v2.0.0` is rebuilt from
+`main` by `tools/sync-v2-branch.sh`, which strips the site and the community
+files and leaves the project. Doing that by hand is how two branches drift
+apart, so it is a script rather than a paragraph.
 
 A branch and a tag here share a name, which git allows but treats as ambiguous:
 `git checkout v2.0.0` will warn. Say `git checkout refs/heads/v2.0.0` for the

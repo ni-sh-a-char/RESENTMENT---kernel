@@ -3,7 +3,10 @@ name: build and test
 
 on:
   push:
-    branches: [main]
+    # v2.0.0 carries the kernel without the site or the community files, so it
+    # has to be built and tested in its own right rather than assumed to work
+    # because main did.
+    branches: [main, v2.0.0]
   pull_request:
   workflow_dispatch:
 
