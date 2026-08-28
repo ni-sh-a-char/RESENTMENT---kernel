@@ -163,8 +163,16 @@ chasing it, both of which mattered on their own:
   same reason: the kernel must never execute user memory, which is what SMEP
   prevents on x86.
 
-Neither fully explains the remaining behaviour, so userspace is **off** on this
-architecture rather than flaky. `RK_HAVE_USERSPACE` is 0 and `.exec` says so
+A third bug was found while chasing this one and turned out to be unrelated and
+much worse: **`sched_tick()` was never called on aarch64 at all.** It was driven
+by a test for interrupt line zero in the dispatcher, which is the x86 timer and
+nothing else's. So that port had no preemption, no slice accounting, and
+`sched_sleep_ms` never returned, because nothing ever woke a sleeper. Nothing in
+the suite slept, so it went unnoticed for the life of the port. The dispatcher
+now asks the architecture which line drives the scheduler.
+
+None of the three explains the remaining behaviour, so userspace is **off** on
+this architecture rather than flaky. `RK_HAVE_USERSPACE` is 0 and `.exec` says so
 instead of panicking.
 
 The longer-term fix is almost certainly to stop identity mapping this port and

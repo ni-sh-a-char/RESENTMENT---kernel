@@ -74,6 +74,22 @@ All three boot to an interactive shell and pass the same test suite.
 - **riscv64** — SBI timer, reset, IPI and hart state management; PLIC, NS16550,
   supervisor traps, and no assumption that the firmware chose hart zero.
 
+### Inference, end to end
+
+- **A transformer forward pass, in the kernel.** Embed, then per layer:
+  normalise, project to queries keys and values, rotate, attend over the
+  history, project back and add; normalise, gate and add. Then a final norm and
+  the logits. Every arithmetic step goes through `rk_op_exec`, so the
+  accounting, the accelerator dispatch and the graph events cover real work
+  rather than the single matrix-vector product that used to stand in for a
+  forward pass.
+- **A deterministic fixture model**, synthesised by `tools/mkmodel.py` into the
+  ramdisk. Pseudo-random weights, so the tokens mean nothing and the
+  documentation says so; the claim is about the path, not the output.
+- **`.infer`** runs it on a thread in `SCHED_INFERENCE` with a declared rate,
+  and reports whether admission control accepted the budget. It is checked by
+  the suite on every architecture on every run.
+
 ### Ring 3
 
 - **An ELF64 loader**, validating every field an untrusted file controls before

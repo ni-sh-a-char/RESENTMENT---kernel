@@ -245,3 +245,85 @@ cpu          0               3          3
 The boot self-test exercises matmul against an identity, checks that softmax
 sums to one, and verifies the tensor lifecycle, so a machine that reports the
 AI subsystem as healthy has actually run arithmetic through it.
+
+
+---
+
+## Running a model
+
+The kernel had tensors, twenty operators, an accelerator layer, a GGUF loader
+and a scheduling class named after inference - and nothing that ran a model.
+The inference "step" was a single matrix-vector product standing in for a
+forward pass, which meant the one claim the whole design rests on was the one
+claim that had never been executed.
+
+`kernel/ai/llm.c` closes that. It is a real transformer decode step:
+
+```
+embed
+for each layer:
+    rmsnorm -> Wq, Wk, Wv -> RoPE on q and k
+    append k and v to the history
+    attention, one head at a time, over everything so far
+    Wo, then add the residual
+    rmsnorm -> gate and up -> SiLU -> multiply -> down, then add the residual
+rmsnorm -> Wout -> argmax
+```
+
+Every arithmetic step goes through `rk_op_exec`, so it is accounted, can be
+dispatched to an accelerator, and shows up in the runtime graph.
+
+```
+resentment> .infer 24
+running a transformer, in the kernel, under SCHED_INFERENCE
+
+[ 0.184] model  model tiny: 21 tensors, 96.6 KiB, 2 layers, digest 5ace8b85...
+[ 0.211] llm    tiny ready: 2 layers, dim 32, 4 heads of 8, ffn 64, vocab 64
+
+  model          tiny (2 layers, dim 32, vocab 64)
+  generated      24 tokens in 130 ms
+  per token      5173 us
+  rate           193 tokens/sec
+  class          SCHED_INFERENCE, 50 Hz declared, 5000 us budget, admitted
+  deadline miss  0
+```
+
+### What this claims, and what it does not
+
+It claims that a model can be read off a filesystem, parsed, mapped, and run
+through the kernel's own operators, and that the work is **admitted, budgeted
+and yielded** as a soft real-time stream rather than as a tight loop that makes
+the machine unusable. `admitted` in that output is the deadline admission
+controller accepting the declared rate; ask for more than the class has left
+and it refuses and says so.
+
+It claims nothing whatsoever about output quality. The fixture model has
+pseudo-random weights and the tokens are meaningless by construction. That is
+deliberate: a systems claim is the only kind a kernel is entitled to make, and
+dressing a fixture up as a language model would be exactly the sort of
+overstatement the rest of this documentation avoids.
+
+### The model
+
+`tools/mkmodel.py` synthesises it at build time: two layers, embedding 32, four
+heads of eight, feed-forward 64, vocabulary 64, about 96 KiB. Deterministic, so
+two builds produce byte-identical files and the digest in the runtime graph is
+stable - which is what lets the graph's attestation story cover the model as
+well as the kernel.
+
+It is generated rather than committed because it is a fixture, and it is small
+because on ARM and RISC-V it is linked into the kernel image along with the
+rest of the ramdisk.
+
+### What is left
+
+**The paged KV cache is not on this path yet.** The forward pass keeps its own
+contiguous history, laid out `[layer][head][position][head_dim]`, because
+attention wants one head's keys consecutive and `rk_kv` stores sixteen-token
+blocks. So the content addressing and the prefix sharing - the most interesting
+things the cache does - are exercised by their own tests and not by inference.
+Wiring the decode loop onto `rk_kv` needs a gather, and is the next piece.
+
+Everything is f32. The quantised formats are parsed and the operators dequantise
+on the fly, but there are no quantised kernels and the SIMD paths the
+accelerator HAL selects between are not yet taken.

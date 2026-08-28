@@ -309,6 +309,33 @@ struct rk_infer_stats {
 };
 void rk_infer_stats(struct rk_infer_stats *out);
 
+/* --------------------------------------------------- running a transformer */
+
+/* A loaded model plus the activations and history one sequence needs. The
+ * forward pass runs through rk_op_exec, so everything it does is accounted,
+ * dispatchable to an accelerator, and visible in the runtime graph. */
+struct rk_llm;
+
+struct rk_llm *rk_llm_open(struct rk_model *m, u32 context);
+void rk_llm_close(struct rk_llm *c);
+
+/* One token in, one token out. Call it once per prompt token and discard the
+ * result to prefill; call it repeatedly on its own output to generate. */
+int  rk_llm_step(struct rk_llm *c, u32 token, u32 *next);
+
+/* Generates `count` tokens, yielding between each - which is the whole reason
+ * inference is a scheduling class rather than a library. */
+int  rk_llm_generate(struct rk_llm *c, u32 seed, u32 count,
+                     u32 *out, u32 *produced);
+
+u32  rk_llm_position(const struct rk_llm *c);
+void rk_llm_reset(struct rk_llm *c);
+void rk_llm_stats(const struct rk_llm *c, u64 *tokens, u64 *compute_ns);
+
+/* Loads a model, generates from it on a thread in the inference class with a
+ * declared rate, and prints what happened. */
+int  rk_llm_demo(const char *path, u32 count, u32 rate_hz);
+
 /* ----------------------------------------------------- kernel-side agency */
 
 /* A small, bounded hook so the kernel can *ask* rather than only *decide*.

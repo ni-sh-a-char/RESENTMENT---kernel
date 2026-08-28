@@ -36,6 +36,10 @@ void rk_irq_unmask(u32 irq);
 /* Entry point from arch trap code. */
 void rk_irq_dispatch(u32 irq);
 
+/* Tell the dispatcher which line drives preemption. Defaults to zero,
+ * which is right for a PC and wrong for almost everything else. */
+void rk_irq_set_timer_line(u32 line);
+
 /* Implemented per architecture by whatever interrupt controller is in use. */
 void rk_irq_mask_arch(u32 irq, bool masked);
 void rk_irq_eoi_arch(u32 vector);

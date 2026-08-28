@@ -120,6 +120,24 @@ bool rk_in_irq(void)
 	return cpu < RK_MAX_CPUS && in_irq_depth[cpu] > 0;
 }
 
+/* Which line drives the scheduler.
+ *
+ * This used to be hardcoded to zero, which is the x86 timer and nothing
+ * else's. aarch64's timer is a private peripheral interrupt on line 27, so
+ * that port called sched_tick from nowhere at all: no preemption, no slice
+ * accounting, and sched_sleep_ms never returned because nothing ever woke a
+ * sleeper. Nothing in the suite slept, so it went unnoticed for the life of
+ * the port.
+ *
+ * The architecture says which line it is. Zero stays the default, so a port
+ * whose timer really is line zero needs to do nothing. */
+static u32 timer_line;
+
+void rk_irq_set_timer_line(u32 line)
+{
+	timer_line = line;
+}
+
 void rk_irq_dispatch(u32 vector)
 {
 	u32 cpu = arch_cpu_id();
@@ -177,6 +195,12 @@ void rk_irq_dispatch(u32 vector)
 
 	rk_graph_record(GEV_IRQ, 0, line, handled ? 1 : 0, rk_time_ns() - start);
 
+	/* After the interrupt depth is dropped, not before: this may switch
+	 * threads, and the thread it switches to must not believe it is in
+	 * interrupt context - the first mutex it took would panic. */
+	if (line == timer_line && sched_active())
+		sched_tick();
+
 	if (want_thread) {
 		/* Threaded halves run after the EOI so the line is live again while
 		 * they work. */
@@ -188,10 +212,6 @@ void rk_irq_dispatch(u32 vector)
 		}
 	}
 
-	/* The timer interrupt is what drives preemption, and this is the only
-	 * place the kernel knows a slice may have expired. */
-	if (line == 0 && sched_active())
-		sched_tick();
 }
 
 void rk_irq_stats(u32 irq, u64 *count, u64 *ns_total)

@@ -8,6 +8,7 @@
  * which are keyed by wall time.
  */
 #include <rk/time.h>
+#include <rk/sched.h>
 #include <rk/arch.h>
 #include <rk/log.h>
 #include <rk/errno.h>
@@ -187,6 +188,7 @@ void rk_timer_tick(void)
 		if (fn)
 			fn(t, arg);
 	}
+
 }
 
 /* --------------------------------------------------------- replay clock */

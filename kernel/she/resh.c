@@ -19,6 +19,7 @@
 #include <rk/errno.h>
 #include <rk/vfs.h>
 #include <rk/elf.h>
+#include <rk/ai.h>
 #include <rk/sched.h>
 #include <rk/graph.h>
 #include <rk/time.h>
@@ -272,6 +273,26 @@ static bool dot_command(struct she_vm *vm, const char *line)
 					rk_printf("[%s is still running]\n", arg);
 			}
 		}
+	} else if (strcmp(verb, "infer") == 0) {
+		/* Loads the fixture model and generates from it on a thread in the
+		 * inference class. The tokens mean nothing - the weights are
+		 * pseudo-random - and the point is entirely that the path exists and
+		 * is scheduled as a soft real-time stream. */
+		u32 n = 16;
+		if (arg && *arg) {
+			u32 v = 0;
+			for (const char *p2 = arg; *p2 >= '0' && *p2 <= '9'; p2++)
+				v = v * 10 + (u32)(*p2 - '0');
+			if (v)
+				n = v > 256 ? 256 : v;
+		}
+		rk_printf("running a transformer, in the kernel, under SCHED_INFERENCE\n\n");
+		int rc = rk_llm_demo("/boot/bin/tiny.gguf", n, 50);
+		if (rc != RK_OK)
+			rk_printf("  inference unavailable: %s\n", rk_strerror(rc));
+		rk_printf("\n  The weights are pseudo-random, so the tokens mean\n"
+		          "  nothing. What ran is a real forward pass through the\n"
+		          "  kernel's own operators, yielding between every token.\n");
 	} else if (strcmp(verb, "history") == 0) {
 		for (u32 i = 0; i < history_count; i++)
 			rk_printf("%3u  %s\n", i + 1, history[i]);

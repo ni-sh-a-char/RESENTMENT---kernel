@@ -306,12 +306,13 @@ $(GEN_INITRD_O): $(GEN_INITRD_C)
 # now carries a compiled program as well as scripts, and that program is
 # architecture specific. user/src is the source of it and does not belong in
 # the image.
-$(DIST)/initrd.tar: $(shell find user -type f 2>/dev/null) $(USER_ELF)
+$(DIST)/initrd.tar: $(shell find user -type f 2>/dev/null) $(USER_ELF) tools/mkmodel.py
 	@mkdir -p $(dir $@)
 	@rm -rf $(BUILD)/initrd-root
 	@mkdir -p $(BUILD)/initrd-root/bin
 	$(Q)cp -r user/bin user/etc $(BUILD)/initrd-root/
 	$(Q)cp $(USER_ELF) $(BUILD)/initrd-root/bin/init
+	$(Q)$(PYTHON) tools/mkmodel.py $(BUILD)/initrd-root/bin/tiny.gguf
 	@echo "  INITRD  $@"
 	$(Q)sh tools/mkinitrd.sh $(BUILD)/initrd-root $@
 

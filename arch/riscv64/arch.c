@@ -230,6 +230,10 @@ void riscv64_trap(u64 cause, u64 epc, u64 tval)
 		case 5:   /* supervisor timer */
 			schedule_next_tick();
 			rk_timer_tick();
+			/* This timer is a trap and never reaches rk_irq_dispatch, so the
+			 * scheduler is driven from here rather than from the line the
+			 * dispatcher was told about. Without it there is no preemption
+			 * and nothing ever wakes a sleeping thread. */
 			if (sched_active())
 				sched_tick();
 			return;

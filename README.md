@@ -11,7 +11,7 @@
 [![CI](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml)
 [![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue.svg)](LICENCE)
 [![Architectures](https://img.shields.io/badge/arch-x86__64%20%7C%20aarch64%20%7C%20riscv64-brightgreen.svg)](docs/PORTING.md)
-[![Tests](https://img.shields.io/badge/tests-1440%20host%20%2B%20168%20QEMU-brightgreen.svg)](#verification)
+[![Tests](https://img.shields.io/badge/tests-1440%20host%20%2B%20176%20QEMU-brightgreen.svg)](#verification)
 
 RESENTMENT is a from-scratch operating system kernel for x86_64, ARM64 and
 RISC-V. It is not a Unix clone. It is built around three ideas that a
@@ -235,6 +235,7 @@ Honest, because a status table that overstates is worse than none.
 | VFS, ramfs, devfs, graphfs, initrd | **working** |
 | IPC endpoints, channels, notifications | **working** |
 | AI: tensors, ops, accel HAL, KV cache, model registry | **working**, GGUF parsed |
+| Inference end to end | **working on all three** — a real transformer forward pass through the kernel's own operators, on a thread admitted by deadline admission control |
 | Console: VGA, framebuffer, serial, PS/2 | **working** |
 | Syscall entry (SYSCALL/SYSRET, int 0x80) | **working** |
 | Ring-3 userspace | **working on x86_64** — ELF64 loader, address spaces, syscalls from user mode; not yet on the other two, see [USERSPACE](docs/USERSPACE.md) |
@@ -253,7 +254,7 @@ Honest, because a status table that overstates is worse than none.
 
 `make qemu-test-all` is the one that matters before a release. It builds every
 architecture, boots each twice — once single-core, once with `-smp 4` — and
-drives 28 assertions through the shell over a serial socket each time - 29 on
+drives 29 assertions through the shell over a serial socket each time - 30 on
 x86_64, which additionally loads a program into ring 3. The last few run the
 attestation demo end to end, which is the scenario the whole design
 exists for: seal a snapshot, read the clock angles Kaalka is keying from, prove
@@ -262,17 +263,17 @@ name change with it.
 
 ```
 === x86_64 ==================================================
-  x86_64: all 29 checks passed
+  x86_64: all 30 checks passed
 === aarch64 =================================================
-  aarch64: all 28 checks passed
+  aarch64: all 29 checks passed
 === riscv64 =================================================
-  riscv64: all 28 checks passed
+  riscv64: all 29 checks passed
 === x86_64-smp ==============================================
-  x86_64-smp: all 29 checks passed
+  x86_64-smp: all 30 checks passed
 === aarch64-smp =============================================
-  aarch64-smp: all 28 checks passed
+  aarch64-smp: all 29 checks passed
 === riscv64-smp =============================================
-  riscv64-smp: all 28 checks passed
+  riscv64-smp: all 29 checks passed
 
 every check passed on x86_64, aarch64, riscv64, x86_64-smp, aarch64-smp, riscv64-smp
 ```
@@ -325,6 +326,7 @@ stub. Nothing above `arch/` includes an architecture header.
 - [Porting](docs/PORTING.md) — what a new architecture has to provide
 - [SMP](docs/SMP.md) — how each architecture starts its other cores
 - [Ring 3](docs/USERSPACE.md) — the ELF loader, and what a process may do
+- [The AI subsystem](docs/AI.md) — tensors, scheduling, and the forward pass
 - [Contributing](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Security](SECURITY.md) · [Governance](GOVERNANCE.md)
 
 The full documentation site, including everything above rendered for reading

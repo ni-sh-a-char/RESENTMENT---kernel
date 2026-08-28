@@ -65,6 +65,15 @@ USERSPACE_CHECKS = [
 ]
 TARGETS["x86_64"]["checks"] = USERSPACE_CHECKS
 
+# Running a transformer, on the other hand, is pure arithmetic and works
+# everywhere. This is the check behind the phrase "AI-native": a GGUF model
+# read off a filesystem, a real forward pass through the kernel's own
+# operators, and the work admitted by deadline admission control.
+INFERENCE_CHECK = (".infer 8", "SCHED_INFERENCE", False)
+for _t in TARGETS.values():
+    _t.setdefault("checks", [])
+    _t["checks"] = list(_t["checks"]) + [INFERENCE_CHECK]
+
 for _arch, _extra in (("x86_64", ["ACPI reports 4 usable processors"]),
                       ("aarch64", []),
                       ("riscv64", [])):

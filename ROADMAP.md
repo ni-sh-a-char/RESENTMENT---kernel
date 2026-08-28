@@ -57,17 +57,26 @@ What is left, in the order it should be done:
   interesting than usual: a socket is an object with rights and an expiry, so
   "this process may talk to this host until Tuesday" is expressible.
 
-### 3. Making the AI subsystem load a model end to end
+### 3. The AI subsystem, past the first mile
 
-GGUF is parsed and the tensor, operator, accelerator and KV-cache layers exist.
-What is missing is the last mile:
+**Done**: a model is read off a filesystem, parsed, and run through a real
+transformer forward pass built from the kernel's own operators, on a thread the
+deadline admission controller accepted. `.infer` does it on every architecture
+and the suite checks it on every run.
 
-- Quantised kernels (Q4_K, Q8_0) with the SIMD paths the accelerator HAL already
-  selects between
-- A worked example: a small model in the initrd, generating tokens under
-  `SCHED_INFERENCE`, with the scheduler trace visible in `/graph/events`
-- The advisor hook exercised for real, against the deterministic fallback, with
-  the difference measurable
+What is left:
+
+- **Put the decode loop on the paged KV cache.** The forward pass keeps its own
+  contiguous history, because attention wants one head's keys consecutive and
+  the paged cache stores sixteen-token blocks. The content addressing and
+  prefix sharing are therefore not yet on the inference path, which is the
+  single most interesting thing the cache does.
+- **Quantised kernels** (Q4_K, Q8_0) with the SIMD paths the accelerator HAL
+  already selects between. Everything today is f32.
+- **A real model**, rather than the deterministic fixture. The fixture exists to
+  prove the path, and says so; it makes no claim about output.
+- **The advisor hook exercised for real**, against the deterministic fallback,
+  with the difference measurable.
 
 ### 4. Hardening
 

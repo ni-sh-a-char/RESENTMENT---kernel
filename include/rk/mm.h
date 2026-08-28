@@ -191,9 +191,11 @@ int strncpy_from_user(char *dst, const char *usrc, size_t n) __must_check;
 #  define RK_USER_VA_MAX    0x0000007FFFFFF000ull
 #  define RK_USER_STACK_TOP 0x0000007F00000000ull
    /* The address space plumbing is in place and the entry and system call
-    * paths work, but a freshly mapped user page does not yet reliably hold
-    * what the loader writes into it, so this is off rather than flaky. See
-    * docs/USERSPACE.md for exactly what is left. */
+    * paths both work - a trap out of EL0 arrives with the right saved state.
+    * What does not work is that a freshly mapped user page does not reliably
+    * hold what the loader writes into it, so this is off rather than flaky.
+    * See docs/USERSPACE.md for what is left and what was already fixed
+    * chasing it. */
 #  define RK_HAVE_USERSPACE 0
 #else
 #  define RK_USER_VA_MIN    0x0000000000400000ull

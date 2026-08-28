@@ -328,6 +328,7 @@ void arch_timer_init(u32 hz)
 	SYSREG_WRITE(cntv_ctl_el0, CNTV_CTL_ENABLE);
 
 	rk_irq_request(TIMER_IRQ, timer_handler, NULL, NULL, "generic-timer");
+	rk_irq_set_timer_line(TIMER_IRQ);
 	rk_irq_unmask(TIMER_IRQ);
 	pr_info("generic timer at %llu Hz, ticking at %u Hz",
 	        (unsigned long long)timer_freq, hz);
