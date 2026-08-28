@@ -32,6 +32,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "media")
 
 VERSION = "2.0.0"
+
+HOST_CHECKS = 1440          # make test
+QEMU_CHECKS = 180           # make qemu-test-all, 30 across each of 6 targets
+TOTAL_CHECKS = HOST_CHECKS + QEMU_CHECKS
 REPO    = "https://github.com/ni-sh-a-char/RESENTMENT---kernel"
 DOCS    = "https://ni-sh-a-char.github.io/RESENTMENT---kernel/"
 
@@ -500,13 +504,13 @@ RESENTMENT is a capability-secure, AI-native kernel.
   same digest.
 → Inference is a scheduling class, not an afterthought.
 
-Runs on x86_64, ARM64 and RISC-V. Uses every core. 1,608 automated checks.
+Runs on x86_64, ARM64 and RISC-V. Uses every core. %s automated checks.
 Zero dependencies.
 
 Built in the open, Apache 2.0, link in bio.
 
 #osdev #kernel #systemsprogramming #riscv #arm64 #cybersecurity #opensource
-#lowlevelprogramming #computerscience #buildinpublic"""
+#lowlevelprogramming #computerscience #buildinpublic""" % "{:,}".format(TOTAL_CHECKS)
 
 
 # ------------------------------------------------------------------ build
