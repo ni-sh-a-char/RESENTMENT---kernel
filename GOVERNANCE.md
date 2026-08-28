@@ -55,6 +55,13 @@ than against the answer.
 
 A closed issue is not a rebuke. It is an answered question.
 
+## Branches
+
+`main` is the current state and where releases are tagged from. `develop` is
+the integration branch. `release/1.x` and `release/2.x` hold the two release
+lines, named after the line rather than the tag so that a branch name never
+shadows a tag name.
+
 ## Releases
 
 Semantic versioning on the kernel as a whole.

@@ -5,6 +5,21 @@ of what matters is enforced by `make check` rather than by review.
 
 ---
 
+## Branches
+
+| Branch | What it is |
+|---|---|
+| `main` | The current state of the project. Tagged releases are cut from here. |
+| `develop` | Integration. Work lands here first when it is large enough to want a soak before it reaches `main`. |
+| `release/2.x` | The 2.x line, at `v2.0.0`. Fixes for a shipped 2.x release go here and are merged forward. |
+| `release/1.x` | The 1.x line, at `v1.0.0` - the original hobby kernel, frozen. Kept reachable because the starting point is part of the story. |
+
+The release branches are named `release/N.x` rather than after the tags they
+contain. A branch and a tag with the same name make every `git checkout` of
+that name ambiguous, and git will refuse to create the second one; naming the
+*line* rather than the *point* avoids the collision entirely and leaves the
+tags to do what tags are for.
+
 ## Before you send anything
 
 ```sh

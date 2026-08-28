@@ -342,6 +342,17 @@ several rather than the only thing the kernel could do.
 and wrote to the VGA text buffer. `v2.0.0` is this tree. Both tags stay
 reachable, because the starting point is part of the story.
 
+| Branch | What it is |
+|---|---|
+| `main` | the current state; releases are tagged from here |
+| `develop` | integration, for work that wants a soak first |
+| `release/2.x` | the 2.x line, at `v2.0.0` |
+| `release/1.x` | the 1.x line, at `v1.0.0` — the original kernel, frozen |
+
+The release branches are named after the *line* rather than the tag: a branch
+and a tag sharing a name makes every `git checkout` of it ambiguous, and git
+refuses to create the second one anyway.
+
 ## Press kit
 
 `media/` carries the social preview cards and a document with ready-to-post
