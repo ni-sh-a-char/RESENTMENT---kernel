@@ -342,6 +342,27 @@ several rather than the only thing the kernel could do.
 and wrote to the VGA text buffer. `v2.0.0` is this tree. Both tags stay
 reachable, because the starting point is part of the story.
 
+## Press kit
+
+`media/` carries the social preview cards and a document with ready-to-post
+copy, the asset guide and the talking points — including an honest list of what
+is *not* done, which is the section that matters most when a technical audience
+reads it.
+
+| File | What it is |
+|---|---|
+| `media/social-preview.png` | 1280×640 — the GitHub repository social preview |
+| `media/social-wide.png` | 1600×900 — X and anything 16:9, with a real boot transcript |
+| `media/social-linkedin.png` | 1200×627 — LinkedIn and Facebook link cards |
+| `media/RESENTMENT-2.0.0-social-kit.docx` | posts, talking points, fact sheet |
+
+All of it regenerates with `make media`. The cards come from
+[`tools/mksocial.py`](tools/mksocial.py) and the document from
+[`tools/mkdocx.py`](tools/mkdocx.py), so the numbers in them cannot drift from
+the numbers in the suite.
+
+---
+
 ## Licence
 
 Apache 2.0. See [LICENCE](LICENCE).

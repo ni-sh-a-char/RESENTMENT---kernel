@@ -221,7 +221,7 @@ $(USER_ELF): $(USER_SRCS) $(USER_LD) user/src/rksys.h
 
 # ------------------------------------------------------------------ targets
 
-.PHONY: all kernel iso run run-iso run-script debug test verify check clean qemu-test-all site site-serve \
+.PHONY: all kernel iso run run-iso run-script debug test verify check clean qemu-test-all site site-serve media \
         distclean help info all-arch initrd toolchain qemu-test kaalka-check
 
 # Named explicitly rather than left to "whichever target appears first",
@@ -379,6 +379,16 @@ site:
 
 site-serve:
 	$(Q)$(PYTHON) tools/mksite.py --serve
+
+# ------------------------------------------------------------------- media
+
+# The social preview cards and the social kit. Generated rather than drawn by
+# hand, because an asset nobody can rebuild goes stale the moment the version
+# number or the test count changes. Both need packages the kernel build does
+# not, so they are their own target and not part of `all`.
+media:
+	$(Q)$(PYTHON) tools/mksocial.py
+	$(Q)$(PYTHON) tools/mkdocx.py
 
 # -------------------------------------------------------------------- tests
 

@@ -323,6 +323,12 @@ def build():
         if os.path.exists(src):
             shutil.copy(src, os.path.join(OUT, asset))
 
+    # The link preview is the generated PNG rather than the SVG beside it:
+    # every social network rasterises, and several refuse SVG outright.
+    card = os.path.join(ROOT, "media", "social-preview.png")
+    if os.path.exists(card):
+        shutil.copy(card, os.path.join(OUT, "social-preview.png"))
+
     # The landing page is hand-written; only its nav is substituted.
     index = open(os.path.join(WEB, "index.html"), encoding="utf-8").read()
     index = index.replace("{{nav}}", nav_html("index.html"))
