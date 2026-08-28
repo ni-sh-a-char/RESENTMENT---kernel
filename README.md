@@ -11,7 +11,7 @@
 [![CI](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/ni-sh-a-char/RESENTMENT---kernel/actions/workflows/ci.yml)
 [![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue.svg)](LICENCE)
 [![Architectures](https://img.shields.io/badge/arch-x86__64%20%7C%20aarch64%20%7C%20riscv64-brightgreen.svg)](docs/PORTING.md)
-[![Tests](https://img.shields.io/badge/tests-1440%20host%20%2B%20176%20QEMU-brightgreen.svg)](#verification)
+[![Tests](https://img.shields.io/badge/tests-1440%20host%20%2B%20180%20QEMU-brightgreen.svg)](#verification)
 
 RESENTMENT is a from-scratch operating system kernel for x86_64, ARM64 and
 RISC-V. It is not a Unix clone. It is built around three ideas that a
@@ -225,7 +225,7 @@ Honest, because a status table that overstates is worse than none.
 | riscv64: SBI, PLIC, NS16550, supervisor traps | **working**, tested |
 | SMP | **working on all three** — ACPI MADT + AP trampoline, PSCI `CPU_ON`, SBI HSM; tested on 4 and 8 cores |
 | Physical memory (buddy), heap (slab) | **working**, tested |
-| Paging, address spaces, copy-on-write | **working** |
+| Paging, address spaces, copy-on-write | **working on all three** — 4-level on x86_64, 39-bit on aarch64, Sv39 on riscv64 |
 | Scheduler, 4 classes, deadline admission, affinity | **working**, multiprocessor, reschedule IPI |
 | Capabilities, Kaalka seals, revocation | **working**, tested |
 | Runtime graph, digests, snapshots, memfab | **working**, tested |
@@ -238,7 +238,7 @@ Honest, because a status table that overstates is worse than none.
 | Inference end to end | **working on all three** — a real transformer forward pass through the kernel's own operators, on a thread admitted by deadline admission control |
 | Console: VGA, framebuffer, serial, PS/2 | **working** |
 | Syscall entry (SYSCALL/SYSRET, int 0x80) | **working** |
-| Ring-3 userspace | **working on x86_64** — ELF64 loader, address spaces, syscalls from user mode; not yet on the other two, see [USERSPACE](docs/USERSPACE.md) |
+| Ring-3 userspace | **working on all three** — ELF64 loader, per-process address spaces, syscalls from user mode |
 | PCI, block, network drivers | device model only — see [ROADMAP](ROADMAP.md) |
 
 ### Verification
@@ -254,9 +254,7 @@ Honest, because a status table that overstates is worse than none.
 
 `make qemu-test-all` is the one that matters before a release. It builds every
 architecture, boots each twice — once single-core, once with `-smp 4` — and
-drives 29 assertions through the shell over a serial socket each time - 30 on
-x86_64, which additionally loads a program into ring 3. The last few run the
-attestation demo end to end, which is the scenario the whole design
+drives 30 assertions through the shell over a serial socket each time - The last few run the attestation demo and load a program into ring 3, which is the scenario the whole design
 exists for: seal a snapshot, read the clock angles Kaalka is keying from, prove
 the digest holds across pure computation, then change the machine and watch its
 name change with it.
@@ -265,15 +263,15 @@ name change with it.
 === x86_64 ==================================================
   x86_64: all 30 checks passed
 === aarch64 =================================================
-  aarch64: all 29 checks passed
+  aarch64: all 30 checks passed
 === riscv64 =================================================
-  riscv64: all 29 checks passed
+  riscv64: all 30 checks passed
 === x86_64-smp ==============================================
   x86_64-smp: all 30 checks passed
 === aarch64-smp =============================================
-  aarch64-smp: all 29 checks passed
+  aarch64-smp: all 30 checks passed
 === riscv64-smp =============================================
-  riscv64-smp: all 29 checks passed
+  riscv64-smp: all 30 checks passed
 
 every check passed on x86_64, aarch64, riscv64, x86_64-smp, aarch64-smp, riscv64-smp
 ```

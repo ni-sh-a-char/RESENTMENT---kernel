@@ -190,18 +190,49 @@ int strncpy_from_user(char *dst, const char *usrc, size_t n) __must_check;
 #  define RK_USER_VA_MIN    0x0000000200000000ull
 #  define RK_USER_VA_MAX    0x0000007FFFFFF000ull
 #  define RK_USER_STACK_TOP 0x0000007F00000000ull
-   /* The address space plumbing is in place and the entry and system call
-    * paths both work - a trap out of EL0 arrives with the right saved state.
-    * What does not work is that a freshly mapped user page does not reliably
-    * hold what the loader writes into it, so this is off rather than flaky.
-    * See docs/USERSPACE.md for what is left and what was already fixed
-    * chasing it. */
-#  define RK_HAVE_USERSPACE 0
+#  define RK_HAVE_USERSPACE 1
+#elif defined(RK_ARCH_RISCV64)
+   /* Sv39, identity mapped through the bottom eight gigabytes exactly as the
+    * aarch64 port is, so userspace lives above that.
+    *
+    * The ceiling is 256 GiB rather than the 512 GiB the three levels describe,
+    * and that is not a rounding-down for comfort. Sv39 requires a canonical
+    * address: bits 63:39 must all equal bit 38. An address with bit 38 set and
+    * zeros above it is not merely unmapped, it is malformed, and the hardware
+    * faults on it however correct the page tables are. So the usable lower
+    * half stops just short of 2^38. */
+#  define RK_USER_VA_MIN    0x0000000200000000ull
+#  define RK_USER_VA_MAX    0x0000003FFFFFF000ull
+#  define RK_USER_STACK_TOP 0x0000003F00000000ull
+#  define RK_HAVE_USERSPACE 1
 #else
 #  define RK_USER_VA_MIN    0x0000000000400000ull
 #  define RK_USER_VA_MAX    0x0000000000400000ull
 #  define RK_USER_STACK_TOP 0x0000000000400000ull
 #  define RK_HAVE_USERSPACE 0
 #endif
+
+/* Where a kernel mapping with no address hint lands.
+ *
+ * The kernel address space had no mmap base at all - it is a static that is
+ * memset to zero - so every hintless as_map_anon into it resolved to address
+ * zero, which as_map_object could not distinguish from failure and reported as
+ * out of memory. Nothing in the kernel had asked for one, so it was never
+ * noticed.
+ *
+ * x86_64 has a whole canonical half; this sits above the direct map with room
+ * either side. The other two are identity mapped with the kernel in the bottom
+ * eight gigabytes, so this goes above that and stays inside the 39-bit space
+ * their page tables describe. */
+#if defined(RK_ARCH_X86_64)
+#  define RK_KERN_MMAP_BASE 0xFFFFC00000000000ull
+#else
+#  define RK_KERN_MMAP_BASE 0x0000000400000000ull
+#endif
+
+/* Whether this architecture translates addresses at all. Every port does now;
+ * the switch is kept because a bring-up runs without paging before it runs
+ * with it, and the self-test should say "skipped" rather than fail. */
+#define RK_HAVE_PAGING 1
 
 void mm_init(struct boot_info *bi);

@@ -19,6 +19,7 @@
 #include <rk/time.h>
 #include <rk/mm.h>
 #include <rk/sched.h>
+#include <rk/syscall.h>
 #include <rk/panic.h>
 
 #undef RK_SUBSYS
@@ -218,9 +219,9 @@ static void schedule_next_tick(void)
 	sbi_call(SBI_SET_TIMER, 0, (long)(now + timer_interval), 0, 0);
 }
 
-void riscv64_trap(u64 cause, u64 epc, u64 tval);
+void riscv64_trap(u64 cause, u64 epc, u64 tval, u64 *frame);
 
-void riscv64_trap(u64 cause, u64 epc, u64 tval)
+void riscv64_trap(u64 cause, u64 epc, u64 tval, u64 *frame)
 {
 	bool is_interrupt = (cause >> 63) != 0;
 	u64 code = cause & 0x7FFFFFFFFFFFFFFFull;
@@ -262,7 +263,21 @@ void riscv64_trap(u64 cause, u64 epc, u64 tval)
 			return;
 	}
 
-	if (code == 8 || code == 9) {   /* ecall from user or supervisor */
+	if (code == 8) {   /* ecall from user mode: a system call */
+		/* The frame is what trap_vector wrote: a0..a7 at words 8..15 and
+		 * sepc at word 16. sepc points *at* the ecall, so it has to be
+		 * stepped past or the program issues it again forever. */
+		struct rk_syscall_args a = {
+			.nr  = frame[15],
+			.a0  = frame[8],  .a1 = frame[9],  .a2 = frame[10],
+			.a3  = frame[11], .a4 = frame[12], .a5 = frame[13],
+		};
+		frame[8]   = (u64)rk_syscall_dispatch(&a);
+		frame[16] += 4;
+		return;
+	}
+	if (code == 9) {   /* ecall from supervisor: nothing issues one */
+		frame[16] += 4;
 		return;
 	}
 
@@ -334,35 +349,262 @@ s64 arch_wallclock_unix(void)
 
 /* --------------------------------------------------------------- memory */
 
-/* Identity mapped with Sv39 paging left off, as on the aarch64 port. Every
- * caller above arch/ already goes through arch_map, so enabling paging is
- * confined to these functions.
- * ponytail: identity map, no Sv39. */
+/* Sv39: three levels of 512 entries, 39 bits of virtual address.
+ *
+ *   VA[38:30]  index into the root      1 GiB per entry
+ *   VA[29:21]  index into level one     2 MiB per entry
+ *   VA[20:12]  index into level zero    4 KiB per entry
+ *
+ * The kernel is identity mapped through the bottom eight gigabytes using
+ * gigapage leaves in the root, exactly as the aarch64 port is: everything
+ * below one gigabyte is the device region on this machine and everything above
+ * is RAM, so eight entries describe the whole machine and every pointer the
+ * kernel already holds stays valid when translation is switched on.
+ *
+ * That leaves entries 8 through 511 - eight gigabytes to five hundred and
+ * twelve - free for user address spaces, which is why user programs are linked
+ * above 8 GiB here rather than at a traditional low address.
+ */
+
+#define PTE_V   (1ull << 0)
+#define PTE_R   (1ull << 1)
+#define PTE_W   (1ull << 2)
+#define PTE_X   (1ull << 3)
+#define PTE_U   (1ull << 4)
+#define PTE_G   (1ull << 5)
+#define PTE_A   (1ull << 6)
+#define PTE_D   (1ull << 7)
+#define PTE_RWX (PTE_R | PTE_W | PTE_X)
+
+#define SATP_SV39 (8ull << 60)
+
+#define PTE_PPN(pte)  (((pte) >> 10) << 12)
+#define PPN_PTE(pa)   ((((u64)(pa)) >> 12) << 10)
+#define VPN(va, lvl)  (((u64)(va) >> (12 + 9 * (lvl))) & 0x1FF)
+
+/* The root table for the kernel. Static because it has to exist before there
+ * is an allocator to take it from. */
+static u64 boot_root[512] __aligned(4096);
+static u64 *kernel_root;
+static bool paging_on;
+
 vaddr_t arch_phys_to_virt(paddr_t pa) { return (vaddr_t)pa; }
 paddr_t arch_virt_to_phys(vaddr_t va) { return (paddr_t)va; }
 
-pgtable_t arch_pgtable_kernel(void) { return NULL; }
-pgtable_t arch_pgtable_create(void) { return NULL; }
-void arch_pgtable_destroy(pgtable_t p) { (void)p; }
-void arch_pgtable_switch(pgtable_t p) { (void)p; }
+pgtable_t arch_pgtable_kernel(void) { return (pgtable_t)kernel_root; }
+
+static u64 prot_to_pte(u32 prot)
+{
+	u64 e = PTE_V | PTE_A | PTE_D;
+	if (prot & RK_PROT_READ)  e |= PTE_R;
+	if (prot & RK_PROT_WRITE) e |= PTE_W;
+	if (prot & RK_PROT_EXEC)  e |= PTE_X;
+	if (prot & RK_PROT_USER)  e |= PTE_U;
+	else                      e |= PTE_G;
+	/* A leaf with no permissions at all is a pointer to the next level, not a
+	 * mapping, so a page that grants nothing has to be spelled read-only. */
+	if (!(e & PTE_RWX))
+		e |= PTE_R;
+	return e;
+}
+
+/* Walk to the next level, optionally creating it. Returns the table, not the
+ * entry, so the caller indexes it itself. */
+static u64 *walk(u64 *table, u64 idx, bool create)
+{
+	u64 pte = table[idx];
+
+	if (pte & PTE_V) {
+		if (pte & PTE_RWX)
+			return NULL;         /* a leaf where a table was wanted */
+		return (u64 *)(uintptr_t)PTE_PPN(pte);
+	}
+	if (!create)
+		return NULL;
+
+	paddr_t pa = pmm_alloc_page();
+	if (!pa)
+		return NULL;
+	memset((void *)(uintptr_t)pa, 0, RK_PAGE_SIZE);
+	table[idx] = PPN_PTE(pa) | PTE_V;
+	return (u64 *)(uintptr_t)pa;
+}
+
+static u64 *leaf_of(u64 *root, vaddr_t va, bool create)
+{
+	u64 *l1 = walk(root, VPN(va, 2), create);
+	if (!l1)
+		return NULL;
+	u64 *l0 = walk(l1, VPN(va, 1), create);
+	if (!l0)
+		return NULL;
+	return &l0[VPN(va, 0)];
+}
+
+pgtable_t arch_pgtable_create(void)
+{
+	paddr_t pa = pmm_alloc_page();
+	if (!pa)
+		return NULL;
+
+	u64 *root = (u64 *)(uintptr_t)pa;
+	memset(root, 0, RK_PAGE_SIZE);
+
+	/* Every address space carries the kernel's mappings, or the first trap
+	 * out of a user program would find no handler mapped to trap into. */
+	if (kernel_root)
+		for (size_t i = 0; i < 8; i++)
+			root[i] = kernel_root[i];
+
+	return (pgtable_t)(uintptr_t)pa;
+}
+
+void arch_pgtable_destroy(pgtable_t p)
+{
+	/* Frees the root only. The levels beneath it leak, which is acceptable
+	 * while processes are rare and long lived and is not once anything
+	 * spawns in a loop.
+	 * ponytail: walk and free the whole tree when that day comes. */
+	if (p && (u64 *)p != kernel_root)
+		pmm_free_page((paddr_t)(uintptr_t)p);
+}
+
+void arch_pgtable_switch(pgtable_t p)
+{
+	if (!p || !paging_on)
+		return;
+	u64 satp = SATP_SV39 | ((u64)(uintptr_t)p >> 12);
+	__asm__ __volatile__("sfence.vma\n\tcsrw satp, %0\n\tsfence.vma"
+	                     :: "r"(satp) : "memory");
+}
 
 int arch_map(pgtable_t pt, vaddr_t va, paddr_t pa, size_t len, u32 prot)
 {
-	(void)pt; (void)len; (void)prot;
-	return (va == (vaddr_t)pa) ? RK_OK : RK_ENOTSUP;
+	u64 *root = pt ? (u64 *)pt : kernel_root;
+	if (!root)
+		return (va == (vaddr_t)pa) ? RK_OK : RK_ENOTSUP;
+	if (!IS_ALIGNED(va, RK_PAGE_SIZE) || !IS_ALIGNED(pa, RK_PAGE_SIZE))
+		return RK_EINVAL;
+
+	u64 flags = prot_to_pte(prot);
+
+	for (size_t off = 0; off < len; off += RK_PAGE_SIZE) {
+		u64 *leaf = leaf_of(root, va + off, true);
+		if (!leaf)
+			return RK_ENOMEM;
+		*leaf = PPN_PTE(pa + off) | flags;
+		arch_tlb_flush_page(va + off);
+	}
+	return RK_OK;
 }
 
 int arch_unmap(pgtable_t pt, vaddr_t va, size_t len)
-{ (void)pt; (void)va; (void)len; return RK_OK; }
+{
+	u64 *root = pt ? (u64 *)pt : kernel_root;
+	if (!root)
+		return RK_OK;
+
+	for (size_t off = 0; off < len; off += RK_PAGE_SIZE) {
+		u64 *leaf = leaf_of(root, va + off, false);
+		if (leaf) {
+			*leaf = 0;
+			arch_tlb_flush_page(va + off);
+		}
+	}
+	return RK_OK;
+}
+
 int arch_protect(pgtable_t pt, vaddr_t va, size_t len, u32 prot)
-{ (void)pt; (void)va; (void)len; (void)prot; return RK_OK; }
+{
+	u64 *root = pt ? (u64 *)pt : kernel_root;
+	if (!root)
+		return RK_OK;
+
+	u64 flags = prot_to_pte(prot);
+	for (size_t off = 0; off < len; off += RK_PAGE_SIZE) {
+		u64 *leaf = leaf_of(root, va + off, false);
+		if (leaf && (*leaf & PTE_V)) {
+			*leaf = (*leaf & ~0x3FFull) | flags;
+			arch_tlb_flush_page(va + off);
+		}
+	}
+	return RK_OK;
+}
 
 bool arch_translate(pgtable_t pt, vaddr_t va, paddr_t *pa, u32 *prot)
 {
-	(void)pt;
-	if (pa)   *pa = (paddr_t)va;
-	if (prot) *prot = RK_PROT_READ | RK_PROT_WRITE | RK_PROT_EXEC;
+	u64 *root = pt ? (u64 *)pt : kernel_root;
+	if (!root) {
+		if (pa)   *pa = (paddr_t)va;
+		if (prot) *prot = RK_PROT_READ | RK_PROT_WRITE | RK_PROT_EXEC;
+		return true;
+	}
+
+	/* A gigapage in the root is how the kernel is mapped, so the walk has to
+	 * stop at a leaf wherever it finds one. */
+	u64 pte = root[VPN(va, 2)];
+	if (!(pte & PTE_V))
+		return false;
+	u64 size = 1ull << 30;
+	if (!(pte & PTE_RWX)) {
+		u64 *l1 = (u64 *)(uintptr_t)PTE_PPN(pte);
+		pte = l1[VPN(va, 1)];
+		if (!(pte & PTE_V))
+			return false;
+		size = 1ull << 21;
+		if (!(pte & PTE_RWX)) {
+			u64 *l0 = (u64 *)(uintptr_t)PTE_PPN(pte);
+			pte = l0[VPN(va, 0)];
+			if (!(pte & PTE_V))
+				return false;
+			size = 1ull << 12;
+		}
+	}
+
+	if (pa)
+		*pa = PTE_PPN(pte) + (va & (size - 1));
+	if (prot) {
+		*prot = 0;
+		if (pte & PTE_R) *prot |= RK_PROT_READ;
+		if (pte & PTE_W) *prot |= RK_PROT_WRITE;
+		if (pte & PTE_X) *prot |= RK_PROT_EXEC;
+		if (pte & PTE_U) *prot |= RK_PROT_USER;
+	}
 	return true;
+}
+
+/* Point this hart at the page tables the boot hart built. satp is per hart, so
+ * a secondary that skips this runs in bare mode while everything else
+ * translates - it would write straight through a virtual address as though it
+ * were physical, silently, and only on a multiprocessor. */
+static void mmu_enable_cpu(void)
+{
+	if (!kernel_root)
+		return;
+	u64 satp = SATP_SV39 | ((u64)(uintptr_t)kernel_root >> 12);
+	__asm__ __volatile__("sfence.vma\n\tcsrw satp, %0\n\tsfence.vma"
+	                     :: "r"(satp) : "memory");
+}
+
+/* Build the identity map and switch translation on. Everything the kernel
+ * holds is a physical address and stays one, so nothing observable changes -
+ * which is the point: the port keeps working exactly as it did, and now has
+ * page tables to hang demand paging and user address spaces off. */
+static void mmu_enable(void)
+{
+	for (size_t i = 0; i < 8; i++)
+		boot_root[i] = PPN_PTE((u64)i << 30) |
+		               PTE_V | PTE_R | PTE_W | PTE_X | PTE_A | PTE_D | PTE_G;
+
+	kernel_root = boot_root;
+	paging_on = true;
+
+	u64 satp = SATP_SV39 | ((u64)(uintptr_t)boot_root >> 12);
+	__asm__ __volatile__("sfence.vma\n\tcsrw satp, %0\n\tsfence.vma"
+	                     :: "r"(satp) : "memory");
+
+	pr_info("Sv39 paging on, %pB identity mapped, root at %#llx",
+	        RK_BYTES(8ull << 30), (unsigned long long)(uintptr_t)boot_root);
 }
 
 void arch_tlb_flush_page(vaddr_t va)
@@ -491,8 +733,55 @@ void arch_sync_icache(vaddr_t va, size_t len)
 	__asm__ __volatile__("fence.i" ::: "memory");
 }
 
+/* sstatus.SUM - permit Supervisor User Memory access. Clear by default, so
+ * S-mode faults on any page whose PTE has the U bit. */
+#define SSTATUS_SUM (1ull << 18)
+
+static u32 user_access_depth[RK_MAX_CPUS];
+
+void arch_user_access_begin(void)
+{
+	sched_preempt_disable();
+	u32 cpu = arch_cpu_id() % RK_MAX_CPUS;
+	if (user_access_depth[cpu]++ == 0)
+		CSR_SET(sstatus, SSTATUS_SUM);
+}
+
+void arch_user_access_end(void)
+{
+	u32 cpu = arch_cpu_id() % RK_MAX_CPUS;
+	if (user_access_depth[cpu] && --user_access_depth[cpu] == 0)
+		CSR_CLEAR(sstatus, SSTATUS_SUM);
+	sched_preempt_enable();
+}
+
 int arch_enter_user(vaddr_t entry, vaddr_t stack, void *arg)
-{ (void)entry; (void)stack; (void)arg; return RK_ENOSYS; }
+{
+	struct thread *t = arch_current_thread();
+
+	/* The kernel stack this hart returns to on the next trap. trap_vector
+	 * swaps it out of sscratch, which is the whole mechanism keeping kernel
+	 * code off a stack the user program chose. */
+	if (t && t->kstack)
+		CSR_WRITE(sscratch, t->kstack + t->kstack_size);
+
+	/* SPP clear means sret drops to user mode. SPIE set means interrupts are
+	 * enabled once it gets there, without which it could never be preempted. */
+	u64 status = CSR_READ(sstatus);
+	status &= ~(1ull << 8);        /* SPP  = 0 */
+	status |=  (1ull << 5);        /* SPIE = 1 */
+	CSR_WRITE(sstatus, status);
+	CSR_WRITE(sepc, (u64)entry);
+
+	__asm__ __volatile__(
+		"mv   sp, %0\n\t"
+		"mv   a0, %1\n\t"
+		"sret"
+		:: "r"((u64)stack), "r"((u64)(uintptr_t)arg)
+		: "memory");
+
+	return RK_OK;   /* not reached */
+}
 
 /* -------------------------------------------------------------- SMP */
 
@@ -513,6 +802,7 @@ void riscv64_secondary_start(u64 id)
 {
 	__atomic_store_n(&ap_alive, 1, __ATOMIC_SEQ_CST);
 
+	mmu_enable_cpu();                 /* satp is per hart */
 	CSR_SET(sstatus, 1ull << 13);     /* the float unit, as on the boot hart */
 	schedule_next_tick();
 
@@ -632,6 +922,7 @@ void arch_init(struct boot_info *bi)
 {
 	(void)bi;
 	rk_irq_init();
+	mmu_enable();
 	plic_init();
 
 	/* Mark the float unit as usable once, at boot. The base kernel is built

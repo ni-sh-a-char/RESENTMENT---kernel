@@ -115,6 +115,21 @@ riscv64_secondary_entry:
 .align 4
 .global trap_vector
 trap_vector:
+	/* Which stack are we on?
+	 *
+	 * sscratch holds this hart's kernel stack pointer while user code runs,
+	 * and zero while kernel code runs. So after the swap a non-zero sp means
+	 * the trap came from user mode and sp is now the kernel stack, with the
+	 * user stack parked in sscratch. A zero sp means we were already in the
+	 * kernel, and the swap has to be undone.
+	 *
+	 * Without this a trap from user mode would run the whole kernel on a
+	 * stack the user program chose, which is not a bug so much as an open
+	 * door. */
+	csrrw   sp, sscratch, sp
+	bnez    sp, 1f
+	csrrw   sp, sscratch, sp
+1:
 	addi    sp, sp, -256
 	sd      ra,   0(sp)
 	sd      t0,   8(sp)
@@ -144,18 +159,34 @@ trap_vector:
 	csrr    t0, sstatus
 	sd      t0, 136(sp)
 
+	/* The user stack pointer, or zero when the trap came from the kernel.
+	 * sscratch is then cleared so that a fault taken *inside* this handler
+	 * takes the kernel path above rather than treating the user stack as a
+	 * kernel one. */
+	csrr    t0, sscratch
+	sd      t0, 144(sp)
+	csrw    sscratch, zero
+
 	csrr    a0, scause
 	csrr    a1, sepc
 	csrr    a2, stval
+	mv      a3, sp                  /* the saved frame, for the syscall path */
 	call    riscv64_trap
 
+	ld      t0, 144(sp)
+	beqz    t0, 2f
+
+	/* Returning to user mode: leave this hart's kernel stack in sscratch for
+	 * the next trap, then restore and swap back to the user stack. */
+	addi    t1, sp, 256
+	csrw    sscratch, t1
+2:
 	ld      t0, 136(sp)
 	csrw    sstatus, t0
 	ld      t0, 128(sp)
 	csrw    sepc, t0
 
 	ld      ra,   0(sp)
-	ld      t0,   8(sp)
 	ld      t1,  16(sp)
 	ld      t2,  24(sp)
 	ld      t3,  32(sp)
@@ -170,7 +201,17 @@ trap_vector:
 	ld      a5, 104(sp)
 	ld      a6, 112(sp)
 	ld      a7, 120(sp)
+
+	/* t0 last, and the stack after it: reading the saved user sp out of the
+	 * frame has to happen while sp still points at the frame. */
+	ld      t0, 144(sp)
+	bnez    t0, 3f
+	ld      t0,   8(sp)
 	addi    sp, sp, 256
+	sret
+3:
+	ld      t0,   8(sp)
+	ld      sp, 144(sp)
 	sret
 
 /* ------------------------------------------------------- context switch */

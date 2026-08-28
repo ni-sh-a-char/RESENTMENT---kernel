@@ -968,6 +968,14 @@ void arch_sync_icache(vaddr_t va, size_t len)
 	__asm__ __volatile__("dsb ish\n\tisb" ::: "memory");
 }
 
+/* PAN - Privileged Access Never - is the ARM equivalent, and this port does
+ * not turn it on: it is optional before ARMv8.1 and the boot code does not
+ * probe for it. So the window is a no-op here, and the day PAN is enabled
+ * these are the two functions that need bodies rather than a hunt for every
+ * place the kernel touches a user page. */
+void arch_user_access_begin(void) { sched_preempt_disable(); }
+void arch_user_access_end(void)   { sched_preempt_enable(); }
+
 int arch_enter_user(vaddr_t entry, vaddr_t stack, void *arg)
 {
 	struct thread *t = arch_current_thread();

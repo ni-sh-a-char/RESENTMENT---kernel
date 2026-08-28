@@ -287,7 +287,7 @@ def card(size, fdir, version, terminal=True):
     y = h - int(74 * s)
     items = [("x86_64", FAINT), ("aarch64", FAINT), ("riscv64", FAINT),
              ("SMP", CYAN), ("ring 3", CYAN), ("inference", CYAN),
-             ("1440 + 176 tests", GREEN), ("0 dependencies", FAINT)]
+             ("1440 + 180 tests", GREEN), ("0 dependencies", FAINT)]
     x = m
     for i, (text, colour) in enumerate(items):
         if i:

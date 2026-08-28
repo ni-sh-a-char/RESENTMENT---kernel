@@ -29,24 +29,26 @@ Dates are absent on purpose. This is a roadmap of order, not of schedule.
 
 ## Next
 
-### 1. Ring-3 userspace on the other two architectures
+### 1. Processes that can do more than compute and exit
 
-**Done on x86_64**: the ELF64 loader, per-process address spaces, the initial
-stack, the privilege transition and the system call return path all work and
-are checked by the suite on every run. See [docs/USERSPACE.md](docs/USERSPACE.md).
+**Ring 3 works on all three architectures** and is checked on every run. See
+[docs/USERSPACE.md](docs/USERSPACE.md).
 
-What is left, in the order it should be done:
+What is left is the interesting half:
 
-- **riscv64 Sv39 paging.** A prerequisite, and worth doing on its own merits:
-  without it copy-on-write and demand paging do not function on RISC-V either.
-- **aarch64 TTBR1.** Move the kernel out of TTBR0 and stop identity mapping the
-  port, which is the shape the hardware is designed around. It also removes the
-  reason user programs are currently linked at 8 GiB there.
+- **The initial capability set** handed to a new process, and how a parent
+  narrows it. This is the design question the whole kernel exists to answer and
+  it should not be rushed to match POSIX.
 - **`SYS_TASK_SPAWN`**, so a process can start another one rather than only the
   kernel and the shell being able to.
-- **The initial capability set** handed to a new process, and how a parent
-  narrows it. This is the interesting part and should not be rushed to match
-  POSIX.
+- **TLB shootdown.** `RK_IPI_TLB` is wired and handled but nothing sends it; it
+  becomes necessary the moment two cores share an address space one of them
+  unmaps.
+- **`arch_pgtable_destroy` leaks** every level below the root. Fine while
+  processes are rare, not once anything spawns in a loop.
+- **aarch64 TTBR1.** Moving the kernel out of TTBR0 would free the bottom of
+  every address space and let user programs be linked low, as they are on
+  x86_64.
 
 ### 2. Storage and the network
 

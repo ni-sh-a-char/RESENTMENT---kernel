@@ -1,15 +1,14 @@
 # Ring 3
 
 RESENTMENT loads ELF64 programs, builds an address space for each, and runs
-them in the least privileged mode the hardware offers. This document covers how
-that works, what a program can do from there, and — honestly — which
-architectures it works on today.
+them in the least privileged mode the hardware offers — on **every**
+architecture it supports.
 
-| Architecture | Loads and runs a program |
-|---|---|
-| x86_64 | **yes**, in the test suite |
-| aarch64 | not yet — see [What is left](#what-is-left) |
-| riscv64 | not yet — this port runs with address translation off |
+| Architecture | Ring 3 | Paging | How the kernel is mapped |
+|---|---|---|---|
+| x86_64 | ✅ | 4-level | higher half at −2 GiB, user gets the whole lower canonical half |
+| aarch64 | ✅ | 39-bit VA, 4 KiB granule | identity through TTBR0; user above the bottom 8 GiB |
+| riscv64 | ✅ | Sv39 | identity; user above the bottom 8 GiB, below the canonical ceiling |
 
 ---
 
@@ -138,68 +137,86 @@ the interesting design work is in what that set should be — not in the loader.
 
 ---
 
-## What is left
+## What it took
 
-### aarch64
+Every architecture got here through a different bug, and each one was invisible
+until something finally exercised the path.
 
-The pieces are in place and individually working: `arch_enter_user` reaches EL0
-(confirmed by the saved SPSR on a subsequent trap), the SVC path dispatches
-system calls with the arguments read straight out of the saved frame, and a
-user address space carries the kernel's mappings so a trap does not unmap the
-code servicing it.
+### aarch64 — a NEON `memcpy` and an exception that does not save NEON
 
-What does not work is the last mile: **a freshly mapped user page does not
-reliably hold what the loader writes into it.** A byte-at-a-time copy lands, a
-sixteen-byte `memcpy` lands, and the full-segment `memcpy` does not — the tail
-of it arrives and the head does not. Two real bugs were found and fixed while
-chasing it, both of which mattered on their own:
+A freshly mapped page did not reliably hold what the loader wrote into it. A
+single store landed, a sixteen-byte copy landed, and a full-segment copy lost
+exactly 32 bytes at the head of every page it touched.
 
-- `arch_map` installed a translation without invalidating the TLB, while
-  `arch_unmap` and `arch_protect` both did. A freshly mapped page kept
-  resolving through whatever the TLB remembered.
-- `prot_to_pte` set `UXN` unconditionally with the comment "kernel mappings are
-  never executable from EL0" — correct for kernel pages and fatal for user
-  ones, which could then never be executed at all. `PXN` was inverted for the
-  same reason: the kernel must never execute user memory, which is what SMEP
-  prevents on x86.
+32 bytes is `stp q0, q1` — a NEON pair store. `kernel/lib/string.c` is compiled
+with `-mgeneral-regs-only`, which is supposed to mean no floating point and no
+SIMD anywhere in the kernel. **clang does not honour it for the loop
+vectoriser**, so `memcpy` contained NEON regardless. When a page fault landed on
+that store, the handler ran C code, the retry re-executed the store, and by then
+`q0`/`q1` held whatever the handler had left there — because the exception path
+does not save the SIMD registers, on the entirely reasonable assumption that
+nothing outside `kernel/ai/` uses them.
 
-A third bug was found while chasing this one and turned out to be unrelated and
-much worse: **`sched_tick()` was never called on aarch64 at all.** It was driven
-by a test for interrupt line zero in the dispatcher, which is the x86 timer and
-nothing else's. So that port had no preemption, no slice accounting, and
-`sched_sleep_ms` never returned, because nothing ever woke a sleeper. Nothing in
-the suite slept, so it went unnoticed for the life of the port. The dispatcher
-now asks the architecture which line drives the scheduler.
+`-mno-implicit-float` closes the gap. The design was right; the compiler was not
+being made to follow it.
 
-None of the three explains the remaining behaviour, so userspace is **off** on
-this architecture rather than flaky. `RK_HAVE_USERSPACE` is 0 and `.exec` says so
-instead of panicking.
+Two more bugs surfaced on the way and were worth fixing on their own:
+`arch_map` installed translations without invalidating the TLB while `arch_unmap`
+and `arch_protect` both did, and `prot_to_pte` set `UXN` unconditionally — so a
+user page could never be executed at all.
 
-The longer-term fix is almost certainly to stop identity mapping this port and
-put the kernel in TTBR1 with userspace in TTBR0, which is the shape the
-hardware is designed around. That also removes the reason user programs are
-currently linked at 8 GiB rather than at a low address.
+### riscv64 — no MMU at all, then two more
 
-### riscv64
+This port ran with address translation switched off. `arch_map` succeeded only
+where the virtual address already equalled the physical one, so demand paging
+and copy-on-write did not function either. It now has Sv39: three levels,
+identity-mapped through the bottom eight gigabytes with gigapage leaves, exactly
+as the aarch64 port is.
 
-This port runs with address translation switched off entirely — `satp` is
-never written and `arch_map` returns success only when the virtual address
-already equals the physical one. There is no memory protection to put a process
-behind, so there is nothing to enable.
+Then two things that only a multiprocessor or a user program would ever show:
 
-Sv39 paging is the prerequisite, and it is a self-contained piece of work worth
-doing on its own merits: without it, copy-on-write and demand paging do not
-function on RISC-V either.
+**`satp` is per hart.** Secondary harts never enabled paging, so they ran in
+bare mode while the boot hart translated — writing straight through a virtual
+address as though it were physical, silently, and only under `-smp`.
 
-### Both
+**Sv39 requires a canonical address.** Bits 63:39 must all equal bit 38. The
+user stack had been placed just under 512 GiB, which sets bit 38 with zeros
+above it: not unmapped, *malformed*, and the hardware faults on it however
+correct the page tables are. Userspace therefore stops just short of 2^38.
+aarch64 has no such constraint, because TTBR0 covers a range rather than a
+signed half — which is why the same layout worked there and not here.
 
-- No `SYS_TASK_SPAWN`, so a process cannot start another one; only the kernel
-  and the shell can.
-- No dynamic linking, and none planned in the kernel. A dynamic linker belongs
-  in userspace; putting one here would give the kernel opinions about
+### All three — a window for touching user memory
+
+Every one of these architectures can forbid the kernel from dereferencing a
+user pointer, and by default does: SMAP on x86, `sstatus.SUM` on RISC-V, PAN on
+ARM. That is a good default. But the loader writes segments to the addresses
+the linker chose, and those are user addresses.
+
+So there is now `arch_user_access_begin()` / `arch_user_access_end()`, used by
+the bounded copy helpers and by the loader, and nowhere else. Preemption is
+disabled inside it, because the permission lives in a per-CPU register that no
+context switch on this kernel saves — a thread preempted inside the window
+would leave the door open for whatever ran next.
+
+On RISC-V, forgetting it does not fail gracefully: the store faults, the fault
+handler maps a page that is already mapped, returns success, and the
+instruction retries and faults again, for ever.
+
+---
+
+## What is still not done
+
+- **No `SYS_TASK_SPAWN`**, so a process cannot start another one; only the
+  kernel and the shell can.
+- **No dynamic linking**, and none planned in the kernel. A dynamic linker
+  belongs in userspace; putting one here would give the kernel opinions about
   libraries, search paths and symbol versioning that it has no business
   holding. `ET_DYN` images are loaded at a fixed bias and are expected to
   relocate themselves.
-- `arch_pgtable_destroy` frees the top-level table and leaks the levels beneath
-  it. Harmless while processes are rare and long-lived; not acceptable once
-  anything spawns in a loop.
+- **`arch_pgtable_destroy` frees the top-level table and leaks the levels
+  beneath it.** Harmless while processes are rare and long-lived; not
+  acceptable once anything spawns in a loop.
+- **No TLB shootdown.** `RK_IPI_TLB` is wired end to end and handled, but
+  nothing sends it. It becomes necessary the moment two cores share an address
+  space that one of them unmaps.

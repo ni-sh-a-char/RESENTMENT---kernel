@@ -182,9 +182,15 @@ struct vm_area *as_find(struct address_space *as, vaddr_t va)
 /* First-fit over the sorted area list. First-fit rather than best-fit because
  * a 47-bit address space does not need the packing, and the search is the part
  * that shows up in profiles. */
+/* Returns zero on failure, which is also why an address space must never have
+ * a mmap base of zero: the caller cannot tell the two apart, and the kernel
+ * address space spent its whole life reporting every hintless mapping as out
+ * of memory for exactly that reason. */
 static vaddr_t find_gap(struct address_space *as, vaddr_t hint, size_t len)
 {
 	vaddr_t cursor = hint ? ALIGN_UP(hint, RK_PAGE_SIZE) : as->mmap_base;
+	if (!cursor)
+		return 0;
 	bool restart = true;
 
 	while (restart) {
@@ -474,7 +480,9 @@ int copy_from_user(void *dst, const void *usrc, size_t n)
 		    vm_handle_fault(as, p, VM_FAULT_READ | VM_FAULT_USER) != RK_OK)
 			return RK_EFAULT;
 	}
+	arch_user_access_begin();
 	memcpy(dst, usrc, n);
+	arch_user_access_end();
 	return RK_OK;
 }
 
@@ -499,7 +507,9 @@ int copy_to_user(void *udst, const void *src, size_t n)
 				return RK_EACCES;
 		}
 	}
+	arch_user_access_begin();
 	memcpy(udst, src, n);
+	arch_user_access_end();
 	return RK_OK;
 }
 
@@ -536,6 +546,8 @@ void mm_init(struct boot_info *bi)
 	spin_lock_init(&kernel_as.lock, "kernel-as");
 	kernel_as.pgtable  = arch_pgtable_kernel();
 	kernel_as.refcount = 1;
+	kernel_as.mmap_base = RK_KERN_MMAP_BASE;
+	kernel_as.brk       = RK_KERN_MMAP_BASE;
 
 	struct pmm_stats ps;
 	pmm_stats(&ps);

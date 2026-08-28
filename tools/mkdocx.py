@@ -175,7 +175,7 @@ Boots on x86_64, ARM64 and RISC-V. SMP on all three. Loads a GGUF model and
 runs a real transformer forward pass through its own operators, on a thread the
 deadline admission controller accepted.
 
-1440 host assertions + 176 driven through its own shell under QEMU.
+1440 host assertions + 180 driven through its own shell under QEMU.
 Zero dependencies.
 
 github.com/ni-sh-a-char/RESENTMENT---kernel"""
@@ -280,12 +280,12 @@ X_THREAD = """1/  Two years ago this repo printed one line of text at boot. That
     claim is that the *path* exists and is scheduled correctly — a
     systems claim, which is the only kind a kernel gets to make.
 
-    Ring 3 works on x86_64 only. No PCI, no network stack yet.
+    No PCI, no network stack yet.
 
 13/ Everything is verifiable:
 
     make test           1440 assertions on the host
-    make qemu-test-all  6 targets, 176 assertions through the shell
+    make qemu-test-all  6 targets, 180 assertions through the shell
     make kaalka-check   crypto byte-identical to the reference
 
     Apache 2.0. No dependencies. One command builds all three arches.
@@ -298,7 +298,7 @@ Last night I tagged v2.0.0, and it's a different thing entirely.
 
 RESENTMENT is a capability-secure, AI-native kernel. It boots on x86_64, ARM64
 and RISC-V, uses every core on the machine, and is verified by 1,440 assertions
-on the host plus 176 driven through its own shell under QEMU on six targets.
+on the host plus 180 driven through its own shell under QEMU on six targets.
 
 Three design decisions it's built around:
 
@@ -342,8 +342,7 @@ Each of those passed review, passed tests, and was found only by a second
 toolchain, a four-core workload, or by building something that finally
 exercised the path.
 
-I'm equally clear about what isn't done. Ring 3 works on x86_64 and not yet on
-the other two; there's no PCI enumeration and no network stack. The roadmap
+I'm equally clear about what isn't done. There's no PCI enumeration and no network stack. The roadmap
 lists those, and also lists what the project has decided not to build and why.
 
 Apache 2.0, no dependencies, one command builds all three architectures.
@@ -466,10 +465,15 @@ integrity come from ChaCha20 and HMAC-SHA256. The clock-angle stream alone is
 an additive cipher over a small key space and is not used to protect kernel
 objects.
 
-Ring 3 works on x86_64 only right now. ARM64 has every piece working except
-that a freshly mapped user page doesn't reliably hold what the loader writes
-into it, and RISC-V has no MMU enabled at all yet. Both are switched off rather
-than shipped flaky.
+Ring 3 works on all three architectures, and getting there was mostly a lesson
+in compilers not honouring their own flags. On ARM64, `-mgeneral-regs-only` is
+supposed to keep SIMD out of the kernel; clang emits it in memcpy anyway, and a
+page fault on a NEON pair store lost exactly 32 bytes because the exception path
+doesn't save NEON - reasonably, since nothing outside kernel/ai should have it.
+
+What's genuinely missing: no PCI, no block driver, no network stack. A process
+can't spawn another one yet. And arch_pgtable_destroy leaks every page-table
+level below the root, which is fine while processes are rare and won't be.
 
 https://github.com/ni-sh-a-char/RESENTMENT---kernel"""
 
@@ -478,7 +482,7 @@ SHORT_BLURB = """RESENTMENT 2.0.0 — a capability-secure, AI-native kernel.
 Authority expires by construction. The whole machine has one SHA-256 root
 digest. Inference is a scheduling class.
 
-x86_64 + ARM64 + RISC-V, SMP on all three, 1440 + 176 tests, zero dependencies.
+x86_64 + ARM64 + RISC-V, SMP on all three, 1440 + 180 tests, zero dependencies.
 
 github.com/ni-sh-a-char/RESENTMENT---kernel"""
 
@@ -541,7 +545,7 @@ def build():
         ("Documentation", DOCS),
         ("Licence",       "Apache 2.0"),
         ("Architectures", "x86_64, aarch64, riscv64 — all boot, all SMP"),
-        ("Verification",  "1440 host assertions + 176 through the shell under "
+        ("Verification",  "1440 host assertions + 180 through the shell under "
                           "QEMU across 6 targets"),
         ("Dependencies",  "none — builds from its own sources plus a compiler"),
         ("Tags",          "v1.0.0 (the original hobby kernel) and v2.0.0 (this)"),
@@ -682,9 +686,8 @@ def build():
               "able to look healthy.")
 
     h2(doc, "What is genuinely not done")
-    bullet(doc, "Ring 3 works on x86_64 only. ARM64 needs its kernel moved to "
-                "TTBR1; RISC-V has no MMU enabled at all. docs/USERSPACE.md "
-                "gives the remaining work precisely.")
+    bullet(doc, "No SYS_TASK_SPAWN: a process cannot start another one, "
+                "only the kernel and the shell can.")
     bullet(doc, "No PCI enumeration, no block driver, no network stack. The "
                 "device model exists; the drivers do not.")
     bullet(doc, "The AI subsystem parses GGUF and has the tensor, operator, "
@@ -706,13 +709,13 @@ def build():
         ("Boots to a shell",   "all three, roughly 120 ms"),
         ("SMP",                "all three; tested on 4 and 8 cores"),
         ("Wall clock",         "all three — CMOS, PL031, goldfish"),
-        ("Ring 3 userspace",   "x86_64 (ELF64 loader, address spaces, syscalls)"),
+        ("Ring 3 userspace",   "all three - ELF64 loader, per-process address spaces, syscalls"),
         ("Inference",          "all three - a real transformer forward pass, admitted by deadline admission control"),
         ("Scheduling classes", "4 — realtime, inference, interactive, batch"),
         ("Capability types",   "24, each sealed and time-bounded"),
         ("SHE builtins",       "29, behind 11 permission grants"),
         ("Host assertions",    "1440 (make test)"),
-        ("QEMU assertions",    "176 across 6 targets (make qemu-test-all)"),
+        ("QEMU assertions",    "180 across 6 targets (make qemu-test-all)"),
         ("Boot self-tests",    "7, on every boot"),
         ("Kaalka cross-check", "100% byte-identical to the reference"),
         ("Dependencies",       "zero"),

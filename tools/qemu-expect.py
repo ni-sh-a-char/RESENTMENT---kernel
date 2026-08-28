@@ -63,7 +63,8 @@ TARGETS = {
 USERSPACE_CHECKS = [
     (".exec /boot/bin/init", "hello from ring 3", True),
 ]
-TARGETS["x86_64"]["checks"] = USERSPACE_CHECKS
+for _arch in ("x86_64", "aarch64", "riscv64"):
+    TARGETS[_arch]["checks"] = list(USERSPACE_CHECKS)
 
 # Running a transformer, on the other hand, is pure arithmetic and works
 # everywhere. This is the check behind the phrase "AI-native": a GGUF model

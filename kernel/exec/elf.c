@@ -136,6 +136,12 @@ int rk_elf_load(struct address_space *as, const void *data, size_t len,
 	if (!any)
 		return RK_ENOEXEC;
 
+	/* The loader writes through the addresses the linker chose, which are user
+	 * addresses, so the window stays open for the whole of the second pass.
+	 * Every exit from here closes it. */
+	int rc = RK_OK;
+	arch_user_access_begin();
+
 	/* Second pass: map, then fill. */
 	for (u16 i = 0; i < eh->e_phnum; i++) {
 		if (ph[i].p_type != PT_LOAD)
@@ -150,19 +156,18 @@ int rk_elf_load(struct address_space *as, const void *data, size_t len,
 		 * contents have to be written into it. The real protection is applied
 		 * below, once the bytes are in place. */
 		vaddr_t at = 0;
-		int rc = as_map_anon(as, (vaddr_t)aligned, span,
-		                     RK_PROT_READ | RK_PROT_WRITE | RK_PROT_USER,
-		                     "elf", &at);
+		rc = as_map_anon(as, (vaddr_t)aligned, span,
+		                 RK_PROT_READ | RK_PROT_WRITE | RK_PROT_USER,
+		                 "elf", &at);
 		if (rc != RK_OK)
-			return rc;
+			goto done;
 
 		/* Anonymous memory arrives zeroed, so .bss needs nothing beyond the
 		 * mapping: only the file-backed prefix is copied. */
-		if (ph[i].p_filesz) {
+		if (ph[i].p_filesz)
 			memcpy((void *)(uintptr_t)start,
 			       (const u8 *)data + ph[i].p_offset,
-			       (size_t)ph[i].p_filesz);		}
-
+			       (size_t)ph[i].p_filesz);
 
 		/* The bytes were just written through a data mapping. On an
 		 * architecture whose caches are not coherent, the instruction fetcher
@@ -173,7 +178,7 @@ int rk_elf_load(struct address_space *as, const void *data, size_t len,
 
 		rc = as_protect(as, (vaddr_t)aligned, span, prot_of(ph[i].p_flags));
 		if (rc != RK_OK)
-			return rc;
+			goto done;
 
 		mapped_pages += span / RK_PAGE_SIZE;
 		if (end > brk)
@@ -181,15 +186,20 @@ int rk_elf_load(struct address_space *as, const void *data, size_t len,
 	}
 
 	u64 entry = eh->e_entry + bias;
-	if (entry < RK_USER_LOAD_MIN || entry >= RK_USER_MAX)
-		return RK_ENOEXEC;
+	if (entry < RK_USER_LOAD_MIN || entry >= RK_USER_MAX) {
+		rc = RK_ENOEXEC;
+		goto done;
+	}
 
 	out->entry     = (vaddr_t)entry;
 	out->brk       = (vaddr_t)brk;
 	out->load_bias = (vaddr_t)bias;
 	out->npages    = mapped_pages;
 	out->stack_top = 0;   /* the caller builds the stack */
-	return RK_OK;
+
+done:
+	arch_user_access_end();
+	return rc;
 }
 
 /* ------------------------------------------------------------------ stack */
@@ -216,6 +226,8 @@ static int build_stack(struct address_space *as, int argc,
 	if (rc != RK_OK)
 		return rc;
 
+	arch_user_access_begin();
+
 	u8 *top = (u8 *)(uintptr_t)(base + RK_USER_STACK_SIZE);
 	u8 *p   = top;
 
@@ -229,8 +241,10 @@ static int build_stack(struct address_space *as, int argc,
 		size_t n = strlen(argv[i]) + 1;
 		/* A pathological argument must not walk the stack mapping off its
 		 * bottom and into whatever is below. */
-		if ((size_t)(p - (u8 *)(uintptr_t)base) < n + 512)
+		if ((size_t)(p - (u8 *)(uintptr_t)base) < n + 512) {
+			arch_user_access_end();
 			return RK_E2BIG;
+		}
 		p -= n;
 		memcpy(p, argv[i], n);
 		slot[i] = (u64)(uintptr_t)p;
@@ -259,6 +273,8 @@ static int build_stack(struct address_space *as, int argc,
 	RK_ASSERT_MSG((sp & 15) == 0, "user stack pointer %#llx is not aligned",
 	              (unsigned long long)sp);
 
+	arch_user_access_end();
+
 	*out_sp = (vaddr_t)sp;
 	return RK_OK;
 }
@@ -283,7 +299,10 @@ static void user_bootstrap(void *arg)
 	struct task *task = task_current();
 	struct rk_exec_image img;
 
+	pr_info("DBG bootstrap running, as=%p pgtable=%p",
+	        (void *)task->as, task->as ? (void *)task->as->pgtable : NULL);
 	int rc = rk_elf_load(task->as, sa->image, sa->len, &img);
+	pr_info("DBG elf_load rc=%d", rc);
 	if (rc != RK_OK) {
 		pr_warn("%s: not loadable: %s", sa->path, rk_strerror(rc));
 		goto out;

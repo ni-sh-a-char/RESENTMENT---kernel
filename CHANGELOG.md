@@ -90,6 +90,28 @@ All three boot to an interactive shell and pass the same test suite.
   and reports whether admission control accepted the budget. It is checked by
   the suite on every architecture on every run.
 
+### Ring 3, on every architecture
+
+- **An ELF64 loader**, per-process address spaces, a System V initial stack and
+  the privilege transition - working on x86_64, aarch64 and riscv64, and
+  checked by the suite on every run.
+- **Sv39 paging for riscv64**, which that port did not have at all: it ran with
+  translation switched off, so demand paging and copy-on-write did not function
+  there either.
+- **`arch_user_access_begin`/`end`**, a narrow window in which kernel code may
+  touch user pages. Every one of these architectures can forbid it and by
+  default does - SMAP, `sstatus.SUM`, PAN - and the loader and the bounded copy
+  helpers are the only places that open it.
+- **`-mno-implicit-float` on aarch64.** `-mgeneral-regs-only` is supposed to
+  keep SIMD out of the kernel and clang does not honour it for the loop
+  vectoriser, so `memcpy` contained `stp q0, q1`. A page fault on that store
+  lost exactly 32 bytes, because the exception path does not save the SIMD
+  registers - on the reasonable assumption that nothing outside kernel/ai uses
+  them.
+- A **memory self-test on every boot**: map a range, write across it, read it
+  back, change the protection and read it again. It is what turned an
+  unexplainable loader bug into a two-line reproduction.
+
 ### Ring 3
 
 - **An ELF64 loader**, validating every field an untrusted file controls before

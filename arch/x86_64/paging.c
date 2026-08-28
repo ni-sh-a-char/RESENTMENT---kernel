@@ -12,6 +12,7 @@
 #include <arch/x86.h>
 #include <rk/arch.h>
 #include <rk/mm.h>
+#include <rk/sched.h>
 #include <rk/string.h>
 #include <rk/log.h>
 #include <rk/panic.h>
@@ -463,4 +464,30 @@ void arch_sync_icache(vaddr_t va, size_t len)
 {
 	(void)va;
 	(void)len;
+}
+
+/* SMAP makes a kernel access to a user page a fault, and stac/clac are the
+ * instructions that open and close a window in it. They are only valid on a
+ * CPU that has the feature - executing one without it is an undefined
+ * instruction - so both are guarded.
+ *
+ * Without this the loader works on a CPU with no SMAP and faults on one that
+ * has it, which is the worst way for a protection feature to behave. */
+static u32 user_access_depth[RK_MAX_CPUS];
+
+void arch_user_access_begin(void)
+{
+	sched_preempt_disable();
+	u32 cpu = arch_cpu_id() % RK_MAX_CPUS;
+	if (user_access_depth[cpu]++ == 0 && (arch_cpu_features() & RK_FEAT_SMAP))
+		__asm__ __volatile__("stac" ::: "cc", "memory");
+}
+
+void arch_user_access_end(void)
+{
+	u32 cpu = arch_cpu_id() % RK_MAX_CPUS;
+	if (user_access_depth[cpu] && --user_access_depth[cpu] == 0 &&
+	    (arch_cpu_features() & RK_FEAT_SMAP))
+		__asm__ __volatile__("clac" ::: "cc", "memory");
+	sched_preempt_enable();
 }

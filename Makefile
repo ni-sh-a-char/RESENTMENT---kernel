@@ -75,7 +75,16 @@ ifeq ($(ARCH),x86_64)
                  -no-reboot -display none
 endif
 ifeq ($(ARCH),aarch64)
+  # -mgeneral-regs-only is what says "no floating point in the kernel", and gcc
+  # honours it completely. clang does not: it still lets the loop vectoriser
+  # emit `ldp q0, q1` / `stp q0, q1` in memcpy, which is how a page fault taken
+  # inside a copy came to lose exactly 32 bytes - the exception path does not
+  # save the SIMD registers, because by the design of this kernel nothing
+  # outside kernel/ai should be using them. -mno-implicit-float closes the gap.
   ARCH_CFLAGS := -mgeneral-regs-only
+  ifeq ($(TOOLCHAIN),zig)
+    ARCH_CFLAGS += -mno-implicit-float
+  endif
   AI_CFLAGS   :=
   ifneq ($(TOOLCHAIN),zig)
     # GCC's outline atomics call into libgcc (__aarch64_ldadd4_acq_rel and
@@ -196,6 +205,7 @@ USER_CFLAGS := -std=gnu11 -ffreestanding -nostdlib -fno-builtin \
 # gigabytes of every address space on this port. See RK_USER_VA_MIN.
 USER_BASE := 0x400000
 ifeq ($(ARCH),riscv64)
+  USER_BASE := 0x200000000
   ifneq ($(TOOLCHAIN),zig)
     USER_CFLAGS += -march=rv64imac_zicsr_zifencei -mabi=lp64
   endif
@@ -214,7 +224,10 @@ endif
 # script's own DEFINED() test, so the load address silently stays at its
 # default and the kernel then rejects the image for being outside the user
 # range - which reads as a broken loader rather than a broken link.
-$(USER_LD): user/src/user.ld.in
+# The Makefile is a dependency because USER_BASE lives in it: changing the
+# address here has to regenerate the script, or the program keeps its old load
+# address and the kernel rejects it for being outside the user range.
+$(USER_LD): user/src/user.ld.in Makefile
 	@mkdir -p $(dir $@)
 	$(Q)sed 's/@USER_BASE@/$(USER_BASE)/' $< > $@
 

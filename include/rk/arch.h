@@ -152,6 +152,37 @@ int  arch_enter_user(vaddr_t entry, vaddr_t stack, void *arg) __must_check;
  * long way from the cause. */
 void arch_sync_icache(vaddr_t va, size_t len);
 
+/* Open a window in which kernel code may touch user pages.
+ *
+ * Every architecture here can forbid it, and by default does: x86 has SMAP,
+ * RISC-V has sstatus.SUM, ARM has PAN. That is a good default - the kernel
+ * dereferencing a user pointer by accident is a whole bug class - but the
+ * kernel does have a handful of places where touching user memory is the
+ * entire point: the bounded copy helpers, and the program loader writing a
+ * segment to the address the linker chose.
+ *
+ * Those places say so, narrowly, rather than the kernel leaving the door open
+ * for its whole life. Nesting is allowed; the window closes when the outermost
+ * end() runs.
+ *
+ * Forgetting this on RISC-V does not fail gracefully: the store faults, the
+ * fault handler maps a page that was already mapped, returns success, and the
+ * instruction retries and faults again, for ever.
+ *
+ * Preemption is disabled for the duration, and that is not incidental. The
+ * permission lives in a per-CPU register - sstatus.SUM, or the SMAP flag in
+ * EFLAGS - which no context switch on this kernel saves. A thread preempted
+ * inside the window would leave the door open for whatever ran next, and if it
+ * were then migrated it would close a window it never opened on the other
+ * core. Holding preemption off for a copy is the cheap way to make both
+ * impossible.
+ *
+ * ponytail: preemption held across a whole segment copy. Save the flag per
+ * thread in the context switch if a loader ever has to move something big
+ * enough to matter. */
+void arch_user_access_begin(void);
+void arch_user_access_end(void);
+
 /* ------------------------------------------------------------------- random */
 
 /* Hardware entropy if the CPU has it. Returns bytes actually produced. */

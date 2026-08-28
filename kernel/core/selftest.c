@@ -285,6 +285,124 @@ fail:
 	return RK_EIO;
 }
 
+
+/* ------------------------------------------------------- demand paging */
+
+/* Map a range, write a pattern across it, read it back.
+ *
+ * This exists because of a specific failure: on aarch64 a freshly mapped page
+ * did not reliably hold what was written into it. A single store landed, a
+ * sixteen-byte copy landed, and a copy spanning more than a page lost its
+ * beginning while keeping its end. The ELF loader was where it was noticed,
+ * but nothing about it was specific to loading a program - which is exactly
+ * why the test belongs here, on every boot, rather than in the loader.
+ *
+ * The range deliberately spans several pages, so every page after the first
+ * takes its own fault partway through a copy that is already in progress. */
+static int test_demand_paging(void)
+{
+	if (!RK_HAVE_PAGING) {
+		pr_info("memory self-test skipped: this port runs without paging");
+		return RK_OK;
+	}
+
+	const size_t span = 4 * RK_PAGE_SIZE;
+	struct address_space *as = as_kernel();
+	vaddr_t va = 0;
+
+	int rc = as_map_anon(as, 0, span, RK_PROT_READ | RK_PROT_WRITE,
+	                     "selftest", &va);
+	if (rc != RK_OK)
+		return rc;
+
+	u8 *pattern = kmalloc(span);
+	if (!pattern) {
+		as_unmap(as, va, span);
+		return RK_ENOMEM;
+	}
+	for (size_t i = 0; i < span; i++)
+		pattern[i] = (u8)(i * 31 + 7);
+
+	rc = RK_OK;
+
+	/* One large copy, crossing every page boundary in the range. */
+	memcpy((void *)(uintptr_t)va, pattern, span);
+	{
+		size_t bad = 0, first = span, last = 0;
+		for (size_t i = 0; i < span; i++) {
+			if (((const volatile u8 *)(uintptr_t)va)[i] != pattern[i]) {
+				if (!bad) first = i;
+				last = i;
+				bad++;
+			}
+		}
+		if (bad) {
+			pr_err("demand paging: %llu of %llu bytes wrong, first %llu "
+			       "last %llu (page size %llu)",
+			       (unsigned long long)bad, (unsigned long long)span,
+			       (unsigned long long)first, (unsigned long long)last,
+			       (unsigned long long)RK_PAGE_SIZE);
+			/* Where in each page do they fall? */
+			for (size_t pg = 0; pg < span / RK_PAGE_SIZE; pg++) {
+				size_t lo = span, hi = 0, n = 0;
+				for (size_t i = 0; i < RK_PAGE_SIZE; i++) {
+					size_t k = pg * RK_PAGE_SIZE + i;
+					if (((const volatile u8 *)(uintptr_t)va)[k] != pattern[k]) {
+						if (!n) lo = i;
+						hi = i;
+						n++;
+					}
+				}
+				pr_err("  page %llu: %llu bad, offsets %llu..%llu",
+				       (unsigned long long)pg, (unsigned long long)n,
+				       (unsigned long long)lo, (unsigned long long)hi);
+			}
+			rc = RK_EIO;
+		}
+	}
+
+	/* And the same again one byte at a time, which takes the faults in a
+	 * different order and would catch a copy that only works when it is the
+	 * thing doing the faulting. */
+	if (rc == RK_OK) {
+		memset((void *)(uintptr_t)va, 0, span);
+		for (size_t i = 0; i < span; i++)
+			((volatile u8 *)(uintptr_t)va)[i] = pattern[i];
+		for (size_t i = 0; i < span; i++) {
+			if (((const volatile u8 *)(uintptr_t)va)[i] != pattern[i]) {
+				pr_err("demand paging: byte-wise %llu differs",
+				       (unsigned long long)i);
+				rc = RK_EIO;
+				break;
+			}
+		}
+	}
+
+	/* Changing the protection must not lose the contents. The loader depends
+	 * on exactly this: it writes a segment through a writable mapping and
+	 * then makes it read-only and executable. */
+	if (rc == RK_OK) {
+		rc = as_protect(as, va, span, RK_PROT_READ);
+		if (rc == RK_OK) {
+			for (size_t i = 0; i < span; i++) {
+				if (((const volatile u8 *)(uintptr_t)va)[i] != pattern[i]) {
+					pr_err("demand paging: byte %llu lost across protect",
+					       (unsigned long long)i);
+					rc = RK_EIO;
+					break;
+				}
+			}
+		}
+	}
+
+	kfree(pattern);
+	as_unmap(as, va, span);
+
+	if (rc == RK_OK)
+		pr_info("memory self-test passed: demand paging, copies, protect");
+	return rc;
+}
+
 int rk_selftest_all(void)
 {
 	struct {
@@ -292,6 +410,7 @@ int rk_selftest_all(void)
 		int (*fn)(void);
 	} tests[] = {
 		{ "allocator",    test_allocator },
+		{ "memory",       test_demand_paging },
 		{ "crypto",       rk_crypto_selftest },
 		{ "kaalka",       kaalka_selftest },
 		{ "graph",        test_graph },
