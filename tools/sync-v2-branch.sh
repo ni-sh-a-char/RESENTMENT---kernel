@@ -37,7 +37,7 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 # Everything that belongs to main and only to main.
-SITE="web media tools/mksite.py tools/checklinks.py tools/mksocial.py tools/mkdocx.py .github/workflows/pages.yml"
+SITE="web media tools/sync-v2-branch.sh tools/mksite.py tools/checklinks.py tools/mksocial.py tools/mkdocx.py .github/workflows/pages.yml"
 COMMUNITY="SECURITY.md GOVERNANCE.md ROADMAP.md CODE_OF_CONDUCT.md CONTRIBUTING.md .github/ISSUE_TEMPLATE .github/pull_request_template.md .github/CODEOWNERS .github/FUNDING.yml"
 
 start=$(git rev-parse --abbrev-ref HEAD)
