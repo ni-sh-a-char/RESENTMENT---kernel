@@ -1,0 +1,38 @@
+RESENTMENT 2.0.0 - Instagram carousel
+
+10 slides, 1080x1350, post in numbered order.
+The caption and the rest of the platform copy are in
+media/RESENTMENT-2.0.0-social-kit.docx - kept there so there is
+one home for wording rather than two that disagree.
+
+Alt text, per slide:
+
+slide-01.png
+  Dark slide headed "Authority that expires." under the label An Operating System Kernel. A capability-secure, AI-native kernel
+
+slide-02.png
+  Dark slide headed "Your kernel trusts everything." under the label The Problem. On a normal system every process starts
+
+slide-03.png
+  Dark slide headed "No ambient authority." under the label Capabilities. Nothing here can be reached by naming it.
+
+slide-04.png
+  Dark slide headed "Time is the key." under the label Kaalka. Every capability carries a cryptographic
+
+slide-05.png
+  Dark slide headed "The whole machine has one hash." under the label The Runtime Graph. Every object is a node in a Merkle DAG.
+
+slide-06.png
+  Dark slide headed "Inference is a scheduling class." under the label The Ai Subsystem. Not a background thread that starves the
+
+slide-07.png
+  Dark slide headed "Three architectures. Every core." under the label Portability. Not a port and two aspirations. The same
+
+slide-08.png
+  Dark slide headed "1,620 automated checks." under the label Verification. The host suite compiles the real kernel
+
+slide-09.png
+  Dark slide headed "Three commands. No dependencies." under the label Build It. A compiler, make and QEMU. Nothing else
+
+slide-10.png
+  Dark slide headed "Come and break it." under the label Open Source, Apache 2.0. The tracker has real work in it, scoped and

@@ -417,6 +417,7 @@ site-serve:
 media:
 	$(call need_main_branch,tools/mksocial.py)
 	$(Q)$(PYTHON) tools/mksocial.py
+	$(Q)$(PYTHON) tools/mkcarousel.py
 	$(Q)$(PYTHON) tools/mkdocx.py
 
 # -------------------------------------------------------------------- tests
