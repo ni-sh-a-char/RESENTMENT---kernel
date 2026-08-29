@@ -493,24 +493,21 @@ github.com/ni-sh-a-char/RESENTMENT---kernel"""
 ONE_LINER = ("A capability-secure, AI-native kernel for x86_64, ARM64 and "
              "RISC-V — where every permission carries its own expiry date.")
 
-INSTAGRAM = """Two years ago: a hobby kernel that printed one line at boot.
-Today: v2.0.0.
+INSTAGRAM = """Two years ago this printed one line at boot. Today it runs ring 3 on x86_64, ARM64 and RISC-V.
 
-RESENTMENT is a capability-secure, AI-native kernel.
+RESENTMENT is a capability-secure, AI-native OS kernel, and the whole idea fits in one sentence: authority should expire on its own.
 
-→ Authority expires. Every permission carries a cryptographic seal with its
-  deadline inside. Forget to revoke it and it stops working anyway.
-→ The whole machine has one hash. Two machines in the same state produce the
-  same digest.
-→ Inference is a scheduling class, not an afterthought.
+Every permission carries a cryptographic seal with a deadline inside it. Forget to revoke one and it stops working anyway. Revocation is the default state here, not a chore somebody has to remember.
 
-Runs on x86_64, ARM64 and RISC-V. Uses every core. %s automated checks.
-Zero dependencies.
+Swipe for the rest: why ambient authority is the bug sitting under most breaches, how an entire running machine hashes down to one digest you can diff against yesterday, and why inference is a scheduling class rather than a background thread that starves the moment the machine gets busy.
 
-Built in the open, Apache 2.0, link in bio.
+Three architectures, SMP on all of them, %s automated checks. %s compile the real kernel sources on the host and %s are driven through the kernel's own shell under QEMU. Zero dependencies: a compiler, make, and QEMU.
 
-#osdev #kernel #systemsprogramming #riscv #arm64 #cybersecurity #opensource
-#lowlevelprogramming #computerscience #buildinpublic""" % "{:,}".format(TOTAL_CHECKS)
+Apache 2.0, open since the first commit. The tracker has real work in it, each issue pointing at the file and line it concerns, four of them labelled good first issue. Two confirmed defects are written up in full, because a project that hides its bugs is not one you should build on.
+
+Link in bio.
+
+#osdev #kernel #systemsprogramming #riscv #arm64 #cybersecurity #opensource #lowlevelprogramming #computerscience #buildinpublic""" % ("{:,}".format(TOTAL_CHECKS), "{:,}".format(HOST_CHECKS), QEMU_CHECKS)
 
 
 # ------------------------------------------------------------------ build
@@ -755,6 +752,17 @@ def build():
 
     path = os.path.join(OUT, "RESENTMENT-%s-social-kit.docx" % VERSION)
     doc.save(path)
+
+    # The Instagram caption also goes next to the slides as plain text. It is
+    # the one post that gets pasted straight from a folder rather than read out
+    # of the document, and copying it out of Word brings the styling with it.
+    # Written from the same constant, so the two cannot disagree.
+    cdir = os.path.join(OUT, "carousel")
+    if os.path.isdir(cdir):
+        with open(os.path.join(cdir, "caption.txt"), "w",
+                  encoding="utf-8", newline="\n") as fh:
+            fh.write(INSTAGRAM + "\n")
+        print("  media\\carousel\\caption.txt")
     print("  %s  (%.1f KiB)" % (os.path.relpath(path, ROOT),
                                 os.path.getsize(path) / 1024.0))
     return 0
