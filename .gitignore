@@ -12,3 +12,7 @@
 *.swp
 .DS_Store
 site/
+
+# Python bytecode, from the media tools importing each other.
+__pycache__/
+*.pyc
