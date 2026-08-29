@@ -1,0 +1,15 @@
+Two years ago this printed one line at boot. Today it runs ring 3 on x86_64, ARM64 and RISC-V.
+
+RESENTMENT is a capability-secure, AI-native OS kernel, and the whole idea fits in one sentence: authority should expire on its own.
+
+Every permission carries a cryptographic seal with a deadline inside it. Forget to revoke one and it stops working anyway. Revocation is the default state here, not a chore somebody has to remember.
+
+Swipe for the rest: why ambient authority is the bug sitting under most breaches, how an entire running machine hashes down to one digest you can diff against yesterday, and why inference is a scheduling class rather than a background thread that starves the moment the machine gets busy.
+
+Three architectures, SMP on all of them, 1,620 automated checks. 1,440 compile the real kernel sources on the host and 180 are driven through the kernel's own shell under QEMU. Zero dependencies: a compiler, make, and QEMU.
+
+Apache 2.0, open since the first commit. The tracker has real work in it, each issue pointing at the file and line it concerns, four of them labelled good first issue. Two confirmed defects are written up in full, because a project that hides its bugs is not one you should build on.
+
+Link in bio.
+
+#osdev #kernel #systemsprogramming #riscv #arm64 #cybersecurity #opensource #lowlevelprogramming #computerscience #buildinpublic
