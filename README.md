@@ -387,6 +387,15 @@ the numbers in the suite.
 
 ---
 
+## Built on this kernel
+
+**[RESENTMENT OS](https://github.com/ni-sh-a-char/RESENTMENT)** is an AI
+operating system on this kernel and your own model key: a desktop with agents
+that hold expiring leases instead of permissions, one SHA-256 digest for the
+whole system, and a live console into this kernel over a serial bridge. It is
+the reason `USER_EXTRA` exists in the Makefile. Try it at
+<https://ni-sh-a-char.github.io/RESENTMENT/os/>.
+
 ## Support
 
 RESENTMENT is built in the open and will stay that way. If it is useful to you,

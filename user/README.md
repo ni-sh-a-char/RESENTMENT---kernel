@@ -22,3 +22,8 @@ granted permission to read the runtime graph
 
 That refusal is not the interpreter being careful. It is the same capability
 check a compiled binary hits, in the same place, for the same reason.
+
+An operating system built on this kernel can add its own programs without
+touching this directory: `make USER_EXTRA=/path/to/dir` copies that
+directory's `bin/` (and `etc/`, if present) into the ramdisk beside these.
+[RESENTMENT OS](https://github.com/ni-sh-a-char/RESENTMENT) does exactly that.

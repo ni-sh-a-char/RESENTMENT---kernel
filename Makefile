@@ -42,6 +42,11 @@ ZIG        ?= zig
 NASM       ?= nasm
 QEMU_EXTRA ?=
 
+# A directory whose contents are added to the initial ramdisk beside user/.
+# This is how an operating system built on this kernel ships its own SHE
+# programs without patching this tree: RESENTMENT OS passes its os/user/.
+USER_EXTRA ?=
+
 # Prefer a bare-metal <arch>-elf- toolchain, fall back to the Linux-targeting
 # cross compiler every distribution actually packages. With -ffreestanding and
 # -nostdlib the second produces the same objects and is far easier to install.
@@ -319,11 +324,12 @@ $(GEN_INITRD_O): $(GEN_INITRD_C)
 # now carries a compiled program as well as scripts, and that program is
 # architecture specific. user/src is the source of it and does not belong in
 # the image.
-$(DIST)/initrd.tar: $(shell find user -type f 2>/dev/null) $(USER_ELF) tools/mkmodel.py
+$(DIST)/initrd.tar: $(shell find user $(USER_EXTRA) -type f 2>/dev/null) $(USER_ELF) tools/mkmodel.py
 	@mkdir -p $(dir $@)
 	@rm -rf $(BUILD)/initrd-root
 	@mkdir -p $(BUILD)/initrd-root/bin
 	$(Q)cp -r user/bin user/etc $(BUILD)/initrd-root/
+	$(Q)for d in bin etc; do 	  [ -d "$(USER_EXTRA)/$$d" ] && cp -r "$(USER_EXTRA)/$$d" $(BUILD)/initrd-root/; 	done; true
 	$(Q)cp $(USER_ELF) $(BUILD)/initrd-root/bin/init
 	$(Q)$(PYTHON) tools/mkmodel.py $(BUILD)/initrd-root/bin/tiny.gguf
 	@echo "  INITRD  $@"
