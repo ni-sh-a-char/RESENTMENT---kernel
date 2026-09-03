@@ -329,7 +329,16 @@ $(DIST)/initrd.tar: $(shell find user $(USER_EXTRA) -type f 2>/dev/null) $(USER_
 	@rm -rf $(BUILD)/initrd-root
 	@mkdir -p $(BUILD)/initrd-root/bin
 	$(Q)cp -r user/bin user/etc $(BUILD)/initrd-root/
-	$(Q)for d in bin etc; do 	  [ -d "$(USER_EXTRA)/$$d" ] && cp -r "$(USER_EXTRA)/$$d" $(BUILD)/initrd-root/; 	done; true
+	# Guard on a non-empty USER_EXTRA: an empty value makes $(USER_EXTRA)/bin
+	# expand to /bin and would copy the host filesystem into the ramdisk.
+	$(Q)if [ -n "$(USER_EXTRA)" ]; then \
+		for d in bin etc; do \
+			if [ -d "$(USER_EXTRA)/$$d" ]; then \
+				mkdir -p $(BUILD)/initrd-root/$$d; \
+				cp -r "$(USER_EXTRA)/$$d/." $(BUILD)/initrd-root/$$d/; \
+			fi; \
+		done; \
+	fi
 	$(Q)cp $(USER_ELF) $(BUILD)/initrd-root/bin/init
 	$(Q)$(PYTHON) tools/mkmodel.py $(BUILD)/initrd-root/bin/tiny.gguf
 	@echo "  INITRD  $@"
